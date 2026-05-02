@@ -107,8 +107,16 @@ function lookupUserInSheet(email) {
         });
       }
     }
-    // Cachear todo el mapa (máx 100kb permitidos, suficiente para ~1000 usuarios)
-    cache.put(mapCacheKey, JSON.stringify([...userMap]), CACHE_TTL.LOOKUP_DATA);
+    const serializedMap = JSON.stringify([...userMap]);
+    const mapSize = serializedMap.length;
+
+    if (mapSize > 85000) {
+      // Fallback a PropertiesService si excede el límite de 100KB de CacheService
+      PropertiesService.getScriptProperties().setProperty('USERS_MAP_FALLBACK', serializedMap);
+      cache.put(mapCacheKey, '__FALLBACK__', CACHE_TTL.LOOKUP_DATA);
+    } else {
+      cache.put(mapCacheKey, serializedMap, CACHE_TTL.LOOKUP_DATA);
+    }
   }
 
   return userMap.get(email.toLowerCase()) || null;
