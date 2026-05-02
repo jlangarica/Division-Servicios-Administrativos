@@ -7,6 +7,35 @@
 </head>
 <body>
   
+  <!-- Navegación Principal (Oculta por defecto) -->
+  <nav id="main-navigation" class="nav-hidden">
+    <div class="nav-brand">
+      <span class="brand-text">DSA | Compras</span>
+    </div>
+    <div class="nav-links">
+      <button class="nav-btn active" onclick="navigateMenu(event, 'ui/modules/View_Dashboard')">
+        <span class="icon">🏠</span> Inicio
+      </button>
+      <button class="nav-btn" onclick="navigateMenu(event, 'ui/modules/View_Requisiciones')">
+        <span class="icon">📝</span> Requisiciones
+      </button>
+      <button class="nav-btn" onclick="navigateMenu(event, 'ui/modules/View_Expedientes')">
+        <span class="icon">🗂️</span> Expedientes
+      </button>
+      <button class="nav-btn" onclick="navigateMenu(event, 'ui/modules/View_Catalogos')">
+        <span class="icon">📊</span> Catálogos
+      </button>
+    </div>
+    <div class="nav-user">
+      <div id="user-info-badge" class="user-badge">
+        <!-- Nombre e iniciales se inyectarán aquí -->
+      </div>
+      <button class="logout-btn" onclick="handleLogout()">
+        <span class="icon">🚪</span> Salir
+      </button>
+    </div>
+  </nav>
+
   <!-- Contenedor Principal (SPA) -->
   <div id="app-root">
     <!-- Componente de Carga Inicial -->
