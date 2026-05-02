@@ -31,6 +31,34 @@
  * @returns {Object} Respuesta {success, folio, viewUrl, fileId, error}
  */
 function processIntake(payload) {
+  // --- Validación server-side (defensa en profundidad) ---
+  if (!payload || !payload.fileData || !payload.formData) {
+    return { success: false, error: 'Payload incompleto.' };
+  }
+
+  const { fileData, formData } = payload;
+
+  if (!fileData.base64 || !fileData.mimeType || !fileData.fileName) {
+    return { success: false, error: 'Datos de archivo incompletos.' };
+  }
+
+  // Validar que sea PDF (el cliente valida, pero el servidor debe verificar también)
+  if (fileData.mimeType !== 'application/pdf') {
+    return { success: false, error: 'Solo se aceptan archivos PDF.' };
+  }
+
+  // Validar tamaño máximo (10 MB en base64 ≈ ~13.3 MB en texto)
+  if (fileData.base64.length > 14_000_000) {
+    return { success: false, error: 'El archivo excede el tamaño máximo permitido (10 MB).' };
+  }
+
+  const requiredFields = ['tipo_tramite', 'fecha_recepcion', 'servicio_solicitante', 'oficio_solicitud'];
+  for (const field of requiredFields) {
+    if (!formData[field] || !formData[field].trim()) {
+      return { success: false, error: `Campo requerido faltante: ${field}` };
+    }
+  }
+
   const lock = LockService.getScriptLock();
   try {
     // 1. Asignación de Folio (Bloqueo de concurrencia)
@@ -45,15 +73,16 @@ function processIntake(payload) {
         sheet = ss.getSheets()[0];
     }
 
-    // Validación de Negocio: Duplicidad de oficio
+    // Una sola lectura para duplicados Y correlativo
     const data = sheet.getDataRange().getValues();
-    const isDuplicate = data.some(row => row.includes(payload.formData.oficio_solicitud));
+    const lastRow = data.length;
+
+    const isDuplicate = data.some(row => row.includes(formData.oficio_solicitud));
     if (isDuplicate) {
-      return { success: false, error: 'La referencia del oficio de solicitud ya se encuentra registrada en el sistema.' };
+      return { success: false, error: 'La referencia del oficio ya se encuentra registrada en el sistema.' };
     }
 
     // Calcular folios (Correlativo numérico)
-    const lastRow = sheet.getLastRow();
     // Descontamos la cabecera
     const correlativo = lastRow === 0 ? 1 : lastRow; 
     const anio = new Date().getFullYear();

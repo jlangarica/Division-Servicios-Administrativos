@@ -91,19 +91,20 @@ function lookupUserInSheet(email) {
 
   // Batch read: A2:E{lastRow}
   const data = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
-  const emailLower = email.toLowerCase();
 
-  const userRow = data.find(function(row) {
-    return row[2] && String(row[2]).toLowerCase() === emailLower;
-  });
+  // Construir Map<email, UserDTO> para O(1) lookup
+  const userMap = new Map();
+  for (const row of data) {
+    if (row[2]) {
+      userMap.set(String(row[2]).toLowerCase(), {
+        id:     String(row[0]),
+        name:   String(row[1]),
+        email:  String(row[2]),
+        role:   String(row[3]),
+        prefix: String(row[4]),
+      });
+    }
+  }
 
-  if (!userRow) return null;
-
-  return {
-    id:     String(userRow[0]),
-    name:   String(userRow[1]),
-    email:  String(userRow[2]),
-    role:   String(userRow[3]),
-    prefix: String(userRow[4]),
-  };
+  return userMap.get(email.toLowerCase()) || null;
 }
