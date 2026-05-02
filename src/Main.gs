@@ -21,15 +21,19 @@ function doGet(e) {
  * @returns {string} Contenido HTML del archivo.
  */
 function include(filename) {
+  // Comentado temporalmente para desarrollo: Evita que el CSS/JS se quede pegado en caché
+  /*
   const cache = CacheService.getScriptCache();
   const cacheKey = 'html_partial_' + filename;
   let content = cache.get(cacheKey);
 
   if (!content) {
     content = HtmlService.createHtmlOutputFromFile(filename).getContent();
-    // Caché de 6 horas (21600s) — el contenido HTML es estático entre despliegues
     cache.put(cacheKey, content, 21600);
   }
-
   return content;
+  */
+  
+  // Lectura directa (siempre actualizada)
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
