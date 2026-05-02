@@ -1,0 +1,40 @@
+<div class="dashboard-view">
+  <div class="dashboard-card">
+    <header style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 1rem; margin-bottom: 1.5rem;">
+      <div>
+        <h1 style="margin: 0; font-size: 1.5rem; color: var(--primary-color);">Panel de Control</h1>
+        <p style="margin: 0.2rem 0 0; color: #666;" id="welcome-msg"></p>
+      </div>
+      <div id="user-badge" style="background: #e8f0fe; color: #1967d2; padding: 0.5rem 1rem; border-radius: 20px; font-weight: 500; font-size: 0.9rem;">
+        <!-- Rol se insertará aquí -->
+      </div>
+    </header>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+      <div style="background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        <h3 style="margin-top: 0; font-size: 1.1rem;">📦 Inventario</h3>
+        <p>Consultar existencias y almacén.</p>
+      </div>
+      <div style="background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        <h3 style="margin-top: 0; font-size: 1.1rem;">📝 Requisiciones</h3>
+        <p>Generar nuevas solicitudes de compra.</p>
+      </div>
+      <div style="background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        <h3 style="margin-top: 0; font-size: 1.1rem;">📊 Reportes</h3>
+        <p>Análisis de gastos y consumos.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  /**
+   * Inicializar datos del dashboard con el objeto global currentUser.
+   */
+  (function initDashboard() {
+    if (currentUser) {
+      document.getElementById('welcome-msg').innerText = `Bienvenido(a), ${currentUser.prefix} ${currentUser.name}`;
+      document.getElementById('user-badge').innerText = currentUser.role;
+    }
+  })();
+</script>

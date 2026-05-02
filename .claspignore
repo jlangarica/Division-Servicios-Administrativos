@@ -1,0 +1,14 @@
+# Ignore everything
+**/**
+
+# Except these files
+!src/**/*.ts
+!src/**/*.html
+!appsscript.json
+
+# Specifically ignore git and other metadata
+.git/
+.gitignore
+.claspignore
+README.md
+node_modules/

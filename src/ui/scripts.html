@@ -1,0 +1,76 @@
+<script>
+  /**
+   * Estado global del usuario.
+   */
+  let currentUser = null;
+
+  /**
+   * Valida el acceso del usuario invocando la lógica del servidor.
+   */
+  async function validateAccess() {
+    console.log("Iniciando validación de credenciales...");
+    
+    google.script.run
+      .withSuccessHandler(renderSession)
+      .withFailureHandler((err) => {
+        console.error("Error crítico de red/servidor:", err);
+        renderError();
+      })
+      .getActiveUserSession();
+  }
+
+  /**
+   * Procesa el UserDTO devuelto por el servidor.
+   * @param {Object|null} session
+   */
+  function renderSession(session) {
+    const root = document.getElementById('app-root');
+    
+    if (!session) {
+      console.warn("Sesión nula: Acceso no autorizado.");
+      renderView('src/ui/modules/View_Error_Auth');
+      return;
+    }
+
+    console.log("Sesión validada exitosamente:", session.email);
+    currentUser = session;
+    
+    // Inyectar Dashboard
+    renderView('src/ui/modules/View_Dashboard');
+    
+    // Aquí se habilitaría la barra de navegación si existiera
+    document.body.classList.add('authorized');
+  }
+
+  /**
+   * Helper para renderizar vistas dinámicamente.
+   * @param {string} viewPath
+   */
+  function renderView(viewPath) {
+    const root = document.getElementById('app-root');
+    
+    google.script.run
+      .withSuccessHandler((html) => {
+        root.innerHTML = html;
+        // Disparar evento personalizado si la vista necesita inicialización
+        const event = new CustomEvent('viewLoaded', { detail: { path: viewPath } });
+        document.dispatchEvent(event);
+      })
+      .include(viewPath);
+  }
+
+  /**
+   * Renderiza una vista de error genérica en caso de falla de comunicación.
+   */
+  function renderError() {
+    const root = document.getElementById('app-root');
+    root.innerHTML = `
+      <div class="error-view">
+        <div class="error-card">
+          <h1>Error de Conexión</h1>
+          <p>No se pudo establecer comunicación con el servidor. Por favor, recarga la página o contacta a soporte.</p>
+        </div>
+      </div>
+    `;
+  }
+</script>

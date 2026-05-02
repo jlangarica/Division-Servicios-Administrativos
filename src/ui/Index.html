@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Sistema de Compras HCG</title>
+  <?!= include('src/ui/styles'); ?>
+</head>
+<body>
+  
+  <!-- Contenedor Principal (SPA) -->
+  <div id="app-root">
+    <!-- Componente de Carga Inicial -->
+    <div id="auth-loader" class="loader-container">
+      <div class="spinner"></div>
+      <p>Verificando Credenciales Institucionales...</p>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <?!= include('src/ui/scripts'); ?>
+  
+  <script>
+    /**
+     * Inicialización del sistema al cargar la página.
+     */
+    window.addEventListener('load', () => {
+      validateAccess();
+    });
+  </script>
+</body>
+</html>
