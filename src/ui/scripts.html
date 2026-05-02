@@ -287,6 +287,8 @@ document.addEventListener('keydown', function(e) {
 let pdfDoc = null;
 let pageNum = 1;
 let currentZoom = 1.0;
+let pageRendering = false;
+let pageNumPending = null;
 
 function handleFileSelect(event) {
   const file = event.target.files[0];
@@ -318,6 +320,8 @@ function renderPDF(data) {
     document.getElementById('pdf-toolbar').style.display = 'flex';
     document.getElementById('pdf-canvas').style.display = 'block';
     pageNum = 1;
+    pageRendering = false;
+    pageNumPending = null;
     queueRenderPage(pageNum);
   }).catch(function(err) {
     console.error('Error al renderizar PDF:', err);
@@ -325,24 +329,46 @@ function renderPDF(data) {
   });
 }
 
-function queueRenderPage(num) {
-  if (pdfDoc) {
-    pdfDoc.getPage(num).then(function(page) {
-      const canvas = document.getElementById('pdf-canvas');
-      const ctx = canvas.getContext('2d');
-      const viewport = page.getViewport({scale: currentZoom});
-      
-      canvas.height = viewport.height;
-      canvas.width = viewport.width;
-      
-      const renderContext = {
-        canvasContext: ctx,
-        viewport: viewport
-      };
-      page.render(renderContext);
-      
-      document.getElementById('page-num').textContent = num;
+function renderPage(num) {
+  pageRendering = true;
+  
+  pdfDoc.getPage(num).then(function(page) {
+    const canvas = document.getElementById('pdf-canvas');
+    const ctx = canvas.getContext('2d');
+    const viewport = page.getViewport({scale: currentZoom});
+    
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+    
+    const renderContext = {
+      canvasContext: ctx,
+      viewport: viewport
+    };
+    
+    const renderTask = page.render(renderContext);
+    
+    renderTask.promise.then(function() {
+      pageRendering = false;
+      if (pageNumPending !== null) {
+        renderPage(pageNumPending);
+        pageNumPending = null;
+      }
+    }).catch(function(err) {
+      console.warn("Render task interrupted:", err);
+      pageRendering = false;
     });
+    
+    document.getElementById('page-num').textContent = num;
+  });
+}
+
+function queueRenderPage(num) {
+  if (!pdfDoc) return;
+  
+  if (pageRendering) {
+    pageNumPending = num;
+  } else {
+    renderPage(num);
   }
 }
 
