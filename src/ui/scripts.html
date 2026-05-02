@@ -298,12 +298,22 @@ function handleFileSelect(event) {
     return;
   }
   
+  // Actualizar zona de carga UI
+  const dropZone = document.getElementById('drop-zone');
+  if (dropZone) {
+    dropZone.classList.add('has-file');
+    document.getElementById('file-name-text').textContent = file.name;
+    document.getElementById('drop-label').textContent = 'Archivo cargado';
+    document.getElementById('drop-hint').textContent = 'Haz clic para cambiar';
+  }
+  
   const reader = new FileReader();
   reader.onload = function(e) {
     const typedarray = new Uint8Array(e.target.result);
     renderPDF(typedarray);
   };
   reader.readAsArrayBuffer(file);
+  updateFormProgress();
 }
 
 function renderPDF(data) {
@@ -388,6 +398,55 @@ function zoomPDF(offset) {
   queueRenderPage(pageNum);
 }
 
+function updateFormProgress() {
+  const fields = {
+    file: document.getElementById('intake-file') && document.getElementById('intake-file').files.length > 0,
+    oficio: document.getElementById('intake-oficio') && document.getElementById('intake-oficio').value.trim() !== '',
+    tipo: document.getElementById('intake-tipo') && document.getElementById('intake-tipo').value !== '',
+    fecha: document.getElementById('intake-fecha') && document.getElementById('intake-fecha').value !== '',
+    servicio: document.getElementById('intake-servicio') && document.getElementById('intake-servicio').value.trim() !== ''
+  };
+
+  document.querySelectorAll('.progress-segment').forEach(function(seg) {
+    const field = seg.getAttribute('data-field');
+    if (fields[field]) {
+      seg.classList.add('filled');
+    } else {
+      seg.classList.remove('filled');
+    }
+  });
+}
+
+function setupFormListeners() {
+  ['intake-oficio', 'intake-tipo', 'intake-fecha', 'intake-servicio'].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', updateFormProgress);
+      el.addEventListener('change', updateFormProgress);
+    }
+  });
+
+  const dropZone = document.getElementById('drop-zone');
+  if (dropZone) {
+    dropZone.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+    dropZone.addEventListener('dragleave', function() {
+      dropZone.classList.remove('drag-over');
+    });
+    dropZone.addEventListener('drop', function(e) {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        document.getElementById('intake-file').files = files;
+        handleFileSelect({ target: { files: files } });
+      }
+    });
+  }
+}
+
 function handleProcessIntake(event) {
   event.preventDefault();
   
@@ -399,9 +458,7 @@ function handleProcessIntake(event) {
   }
   
   const btn = document.getElementById('btn-submit-intake');
-  const ogText = btn.textContent;
-  btn.disabled = true;
-  btn.innerHTML = '<span class="loader-dots" style="transform:scale(0.5);margin-right:8px;"><span></span><span></span><span></span></span> Guardando...';
+  btn.classList.add('loading');
   
   const reader = new FileReader();
   reader.onload = function(e) {
@@ -424,22 +481,27 @@ function handleProcessIntake(event) {
     
     google.script.run
       .withSuccessHandler(function(res) {
-        btn.disabled = false;
-        btn.textContent = ogText;
+        btn.classList.remove('loading');
         if (res.success) {
           Toast.show('¡Expediente generado! Folio: ' + res.folio);
           document.getElementById('form-intake').reset();
+          
+          // Reset UI state
           document.getElementById('pdf-empty-state').style.display = 'block';
           document.getElementById('pdf-toolbar').style.display = 'none';
           document.getElementById('pdf-canvas').style.display = 'none';
+          const dropZone = document.getElementById('drop-zone');
+          if (dropZone) dropZone.classList.remove('has-file');
+          document.getElementById('drop-label').textContent = 'Oficio Escaneado (.pdf)';
+          document.getElementById('drop-hint').textContent = 'Arrastra o haz clic para seleccionar';
+          updateFormProgress();
           pdfDoc = null;
         } else {
           Toast.show('Error: ' + res.error);
         }
       })
       .withFailureHandler(function(err) {
-        btn.disabled = false;
-        btn.textContent = ogText;
+        btn.classList.remove('loading');
         Toast.show('Fallo de red al enviar');
       })
       .processIntake(payload);
@@ -454,6 +516,8 @@ document.addEventListener('viewLoaded', function(e) {
   } else if (e.detail.path === 'ui/modules/View_Requisiciones') {
     const fechaEl = document.getElementById('intake-fecha');
     if (fechaEl) fechaEl.valueAsDate = new Date();
+    setupFormListeners();
+    updateFormProgress();
   }
 });
 
