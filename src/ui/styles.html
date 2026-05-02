@@ -1274,4 +1274,25 @@ a:focus:not(:focus-visible) {
   box-shadow: var(--shadow-sm);
   font-weight: 600;
 }
+
+/* --- Respeta la preferencia del usuario por menos movimiento --- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .loader-ring::before,
+  .loader-ring::after,
+  .loader-dots span,
+  .badge-dot,
+  .skeleton::after,
+  .progress-bar-fill::after {
+    animation: none !important;
+  }
+}
 </style>
