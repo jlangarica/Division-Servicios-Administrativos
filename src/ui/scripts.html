@@ -28,7 +28,7 @@
     
     if (!session) {
       console.warn("Sesión nula: Acceso no autorizado.");
-      renderView('src/ui/modules/View_Error_Auth');
+      renderView('ui/modules/View_Error_Auth');
       return;
     }
 
@@ -36,7 +36,7 @@
     currentUser = session;
     
     // Inyectar Dashboard
-    renderView('src/ui/modules/View_Dashboard');
+    renderView('ui/modules/View_Dashboard');
     
     // Aquí se habilitaría la barra de navegación si existiera
     document.body.classList.add('authorized');

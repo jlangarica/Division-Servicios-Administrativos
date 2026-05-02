@@ -4,7 +4,7 @@
  * @returns {GoogleAppsScript.HTML.HtmlOutput}
  */
 function doGet(e) {
-  return HtmlService.createTemplateFromFile('src/ui/Index')
+  return HtmlService.createTemplateFromFile('ui/Index')
     .evaluate()
     .setTitle('Sistema de Compras HCG')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
