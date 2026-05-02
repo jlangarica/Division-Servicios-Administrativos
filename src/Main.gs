@@ -3,7 +3,7 @@
  * @param {GoogleAppsScript.Events.DoGet} e
  * @returns {GoogleAppsScript.HTML.HtmlOutput}
  */
-function doGet(e: GoogleAppsScript.Events.DoGet) {
+function doGet(e) {
   return HtmlService.createTemplateFromFile('src/ui/Index')
     .evaluate()
     .setTitle('Sistema de Compras HCG')
