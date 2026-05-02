@@ -160,7 +160,19 @@ function handleLogout() {
     '¿Está seguro que desea salir del sistema?',
     function() {
       AppState.setUser(null);
-      window.top.location.href = google.script.host.origin + google.script.host.path;
+      try {
+        const origin = google.script.host.origin;
+        const path = google.script.host.path;
+        if (origin && path) {
+          window.top.location.href = origin + path;
+        } else {
+          window.top.location.reload();
+        }
+      } catch (e) {
+        // Fallback si google.script.host no está disponible
+        console.warn('[Auth] No se pudo construir URL de redirección:', e);
+        window.top.location.reload();
+      }
     }
   );
 }
@@ -191,14 +203,22 @@ function renderView(viewPath) {
 function loadViewContent(viewPath, root) {
   google.script.run
     .withSuccessHandler(function(html) {
-      root.innerHTML = '<div class="view-transition">' + html + '</div>';
-      AppState.setCurrentView(viewPath);
+      try {
+        // Sanitización básica: remover tags <script> si no son esperados
+        // (GAS ya sanitiza, pero defensa en profundidad)
+        const sanitized = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
 
-      // Dispatch custom event for view init
-      var evt = new CustomEvent('viewLoaded', { detail: { path: viewPath } });
-      document.dispatchEvent(evt);
+        root.innerHTML = '<div class="view-transition">' + sanitized + '</div>';
+        AppState.setCurrentView(viewPath);
 
-      _viewTransitionLock = false;
+        const evt = new CustomEvent('viewLoaded', { detail: { path: viewPath } });
+        document.dispatchEvent(evt);
+      } catch (renderError) {
+        console.error('[Router] Error renderizando vista:', renderError);
+        Toast.show('Error al renderizar la vista');
+      } finally {
+        _viewTransitionLock = false;
+      }
     })
     .withFailureHandler(function(err) {
       console.error('[Router] Error cargando vista:', err);
@@ -524,40 +544,36 @@ document.addEventListener('viewLoaded', function(e) {
 function initDashboard() {
   if (typeof AppState === 'undefined' || !AppState.user) return;
 
-  var user = AppState.user;
-  var welcomeEl = document.getElementById('welcome-msg');
-  var roleEl = document.getElementById('user-role-badge');
-  var dateEl = document.getElementById('date-badge');
+  const { prefix, name, role } = AppState.user;
 
-  if (welcomeEl) welcomeEl.textContent = 'Bienvenido(a), ' + user.prefix + ' ' + user.name;
-  if (roleEl) roleEl.textContent = user.role;
+  const welcomeEl = document.getElementById('welcome-msg');
+  const roleEl = document.getElementById('user-role-badge');
+  const dateEl = document.getElementById('date-badge');
+
+  if (welcomeEl) welcomeEl.textContent = `Bienvenido(a), ${prefix} ${name}`;
+  if (roleEl) roleEl.textContent = role;
 
   if (dateEl) {
-    var now = new Date();
-    var options = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
-    dateEl.textContent = now.toLocaleDateString('es-MX', options);
+    const now = new Date();
+    dateEl.textContent = now.toLocaleDateString('es-MX', {
+      weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
+    });
   }
 
-  // Animated counters
-  document.querySelectorAll('[data-counter]').forEach(function(el) {
-    var target = parseInt(el.getAttribute('data-counter'), 10);
-    var duration = 1200;
-    var startTime = null;
+  // Animated counters con easing
+  document.querySelectorAll('[data-counter]').forEach(el => {
+    const target = parseInt(el.getAttribute('data-counter'), 10);
+    const duration = 1200;
+    let startTime = null;
 
-    function animate(ts) {
+    const animate = (ts) => {
       if (!startTime) startTime = ts;
-      var progress = Math.min((ts - startTime) / duration, 1);
-      var eased = 1 - Math.pow(1 - progress, 3); // ease-out-cubic
-      var current = Math.floor(eased * target);
-
-      el.textContent = current.toLocaleString('es-MX');
-
-      if (progress < 1) {
-        requestAnimationFrame(animate);
-      } else {
-        el.textContent = target.toLocaleString('es-MX');
-      }
-    }
+      const progress = Math.min((ts - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = Math.floor(eased * target).toLocaleString('es-MX');
+      if (progress < 1) requestAnimationFrame(animate);
+      else el.textContent = target.toLocaleString('es-MX');
+    };
 
     requestAnimationFrame(animate);
   });
