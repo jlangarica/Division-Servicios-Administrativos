@@ -1,14 +1,12 @@
-# Ignore everything
-**/**
-
-# Except these files
-!src/**/*.ts
-!src/**/*.html
-!appsscript.json
-
-# Specifically ignore git and other metadata
+# Ignore metadata
 .git/
 .gitignore
 .claspignore
+tsconfig.json
 README.md
+
+# Ignore node modules
 node_modules/
+package.json
+package-lock.json
+
