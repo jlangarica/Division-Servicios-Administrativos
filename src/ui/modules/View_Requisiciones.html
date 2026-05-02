@@ -149,23 +149,3 @@
   </div>
 </div>
 
-<script>
-function switchTab(el) {
-  el.parentElement.querySelectorAll('.tab-item').forEach(function(t) {
-    t.classList.remove('active');
-  });
-  el.classList.add('active');
-  Toast.show('Filtro aplicado: ' + el.textContent);
-}
-
-function abrirModalIngresoOficio() {
-  document.getElementById('modal-ingreso-oficio').style.display = 'flex';
-  // Set today as default date
-  document.getElementById('oficio-fecha').valueAsDate = new Date();
-}
-
-function cerrarModalIngresoOficio() {
-  document.getElementById('modal-ingreso-oficio').style.display = 'none';
-  document.getElementById('form-ingreso-oficio').reset();
-}
-</script>
