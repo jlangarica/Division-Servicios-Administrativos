@@ -2,13 +2,7 @@
  * Estructura de transferencia de datos de usuario.
  * @interface UserDTO
  */
-interface UserDTO {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  prefix: string;
-}
+
 
 /**
  * Obtiene la sesión del usuario activo validando contra la lista blanca en Google Sheets.
@@ -16,7 +10,7 @@ interface UserDTO {
  * 
  * @returns {UserDTO | null} Objeto de usuario o null si no está autorizado.
  */
-function getActiveUserSession(): UserDTO | null {
+function getActiveUserSession() {
   const userEmail = Session.getActiveUser().getEmail();
   
   if (!userEmail) {
@@ -52,7 +46,7 @@ function getActiveUserSession(): UserDTO | null {
       return null;
     }
 
-    const userSession: UserDTO = {
+    const userSession = {
       id: String(userRow[0]),
       name: String(userRow[1]),
       email: String(userRow[2]),
