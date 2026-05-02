@@ -48,7 +48,7 @@ function processIntake(payload) {
   }
 
   // Validar tamaño máximo (10 MB en base64 ≈ ~13.3 MB en texto)
-  if (fileData.base64.length > 14_000_000) {
+  if (fileData.base64.length > 14000000) {
     return { success: false, error: 'El archivo excede el tamaño máximo permitido (10 MB).' };
   }
 
