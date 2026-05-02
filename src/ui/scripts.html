@@ -1,112 +1,275 @@
 <script>
-  /**
-   * Estado global del usuario.
-   */
-  let currentUser = null;
+/**
+ * ============================================================
+ * SPA Core — Sistema de Compras HCG
+ * State Management · Router · Transitions · Utilities
+ * ============================================================
+ */
 
-  /**
-   * Valida el acceso del usuario invocando la lógica del servidor.
-   */
-  async function validateAccess() {
-    console.log("Iniciando validación de credenciales...");
-    
-    google.script.run
-      .withSuccessHandler(renderSession)
-      .withFailureHandler((err) => {
-        console.error("Error crítico de red/servidor:", err);
-        renderError();
-      })
-      .getActiveUserSession();
+/* --- STATE MANAGEMENT --- */
+const AppState = (() => {
+  let _user = null;
+  let _currentView = null;
+  const _listeners = new Map();
+
+  return {
+    get user()      { return _user; },
+    get currentView() { return _currentView; },
+
+    setUser(session) {
+      _user = Object.freeze({ ...session });
+      this._emit('user:change', _user);
+    },
+
+    setCurrentView(path) {
+      _currentView = path;
+      this._emit('view:change', path);
+    },
+
+    /** Subscribe to state changes. Returns unsubscribe fn. */
+    on(event, fn) {
+      if (!_listeners.has(event)) _listeners.set(event, []);
+      _listeners.get(event).push(fn);
+      return () => _listeners.get(event).splice(_listeners.get(event).indexOf(fn), 1);
+    },
+
+    _emit(event, data) {
+      (_listeners.get(event) || []).forEach(fn => fn(data));
+    },
+  };
+})();
+
+
+/* --- TOAST SYSTEM --- */
+const Toast = (() => {
+  const container = () => document.getElementById('toast-container');
+
+  function show(message, duration = 3500) {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = message;
+    container().appendChild(el);
+
+    setTimeout(() => {
+      el.classList.add('toast--exit');
+      el.addEventListener('animationend', () => el.remove());
+    }, duration);
   }
 
-  /**
-   * Procesa el UserDTO devuelto por el servidor.
-   * @param {Object|null} session
-   */
-  function renderSession(session) {
-    const root = document.getElementById('app-root');
-    const nav = document.getElementById('main-navigation');
-    
-    if (!session) {
-      console.warn("Sesión nula: Acceso no autorizado.");
-      nav.classList.replace('nav-visible', 'nav-hidden'); // Asegurar que el nav esté oculto
-      renderView('ui/modules/View_Error_Auth');
-      return;
-    }
+  return { show };
+})();
 
-    console.log("Sesión validada exitosamente:", session.email);
-    currentUser = session;
-    
-    // 1. Mostrar Navegación y actualizar info de usuario
-    nav.classList.remove('nav-hidden');
-    nav.classList.add('nav-visible');
-    document.getElementById('user-info-badge').innerText = `${session.prefix} ${session.name}`;
 
-    // 2. Inyectar Dashboard por defecto
-    renderView('ui/modules/View_Dashboard');
-    
-    document.body.classList.add('authorized');
+/* --- RIPPLE EFFECT --- */
+function createRipple(event) {
+  const btn = event.currentTarget;
+  const rect = btn.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height);
+  const x = event.clientX - rect.left - size / 2;
+  const y = event.clientY - rect.top - size / 2;
+
+  const ripple = document.createElement('span');
+  ripple.className = 'ripple';
+  ripple.style.width = ripple.style.height = size + 'px';
+  ripple.style.left = x + 'px';
+  ripple.style.top = y + 'px';
+
+  btn.appendChild(ripple);
+  ripple.addEventListener('animationend', () => ripple.remove());
+}
+
+
+/* --- AUTH --- */
+async function validateAccess() {
+  console.log('[Auth] Iniciando validación de credenciales...');
+
+  google.script.run
+    .withSuccessHandler(renderSession)
+    .withFailureHandler(function(err) {
+      console.error('[Auth] Error crítico de red/servidor:', err);
+      renderError();
+    })
+    .getActiveUserSession();
+}
+
+
+function renderSession(session) {
+  const nav = document.getElementById('main-navigation');
+
+  if (!session) {
+    console.warn('[Auth] Sesión nula — acceso no autorizado.');
+    nav.classList.replace('nav-visible', 'nav-hidden');
+    renderView('ui/modules/View_Error_Auth');
+    return;
   }
 
-  /**
-   * Manejador de navegación para la SPA.
-   * @param {Event} event Evento del clic.
-   * @param {string} viewPath Ruta del archivo HTML a cargar.
-   */
-  function navigateMenu(event, viewPath) {
-    if (event) event.preventDefault();
+  console.log('[Auth] Sesión validada:', session.email);
+  AppState.setUser(session);
 
-    // 1. Retroalimentación visual en el menú
-    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-    if (event && event.currentTarget) {
-      event.currentTarget.classList.add('active');
-    }
+  // Show navigation
+  nav.classList.remove('nav-hidden');
+  nav.classList.add('nav-visible');
 
-    // 2. Carga dinámica del módulo
-    renderView(viewPath);
+  // Update user badge
+  const displayName = session.prefix + ' ' + session.name;
+  document.getElementById('user-display-name').textContent = displayName;
+  const initials = (session.name || '')
+    .split(' ')
+    .map(w => w.charAt(0))
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+  document.getElementById('user-avatar').textContent = initials;
+
+  // Load default view
+  renderView('ui/modules/View_Dashboard');
+
+  // Add ripple to all nav buttons
+  document.querySelectorAll('.nav-btn').forEach(function(btn) {
+    btn.addEventListener('click', createRipple);
+  });
+
+  // Scroll shadow on nav
+  window.addEventListener('scroll', function() {
+    nav.classList.toggle('nav-scrolled', window.scrollY > 4);
+  }, { passive: true });
+}
+
+
+/* --- NAVIGATION --- */
+function navigateMenu(event, viewPath) {
+  if (event) event.preventDefault();
+
+  // Active state
+  document.querySelectorAll('.nav-btn').forEach(function(btn) {
+    btn.classList.remove('active');
+    btn.setAttribute('aria-selected', 'false');
+  });
+  if (event && event.currentTarget) {
+    event.currentTarget.classList.add('active');
+    event.currentTarget.setAttribute('aria-selected', 'true');
   }
 
-  /**
-   * Maneja el cierre de sesión local.
-   */
-  function handleLogout() {
-    if (confirm("¿Está seguro que desea salir del sistema?")) {
-      // Limpiar estado local
-      currentUser = null;
-      // Recargar la página para forzar nueva validación (o mostrar bloqueo)
+  renderView(viewPath);
+}
+
+
+function handleLogout() {
+  showModal(
+    'Cerrar Sesión',
+    '¿Está seguro que desea salir del sistema?',
+    function() {
+      AppState.setUser(null);
       window.top.location.href = google.script.host.origin + google.script.host.path;
     }
-  }
+  );
+}
 
-  /**
-   * Helper para renderizar vistas dinámicamente.
-   * @param {string} viewPath
-   */
-  function renderView(viewPath) {
-    const root = document.getElementById('app-root');
-    
-    google.script.run
-      .withSuccessHandler((html) => {
-        root.innerHTML = html;
-        // Disparar evento personalizado si la vista necesita inicialización
-        const event = new CustomEvent('viewLoaded', { detail: { path: viewPath } });
-        document.dispatchEvent(event);
-      })
-      .include(viewPath);
-  }
 
-  /**
-   * Renderiza una vista de error genérica en caso de falla de comunicación.
-   */
-  function renderError() {
-    const root = document.getElementById('app-root');
-    root.innerHTML = `
-      <div class="error-view">
-        <div class="error-card">
-          <h1>Error de Conexión</h1>
-          <p>No se pudo establecer comunicación con el servidor. Por favor, recarga la página o contacta a soporte.</p>
-        </div>
-      </div>
-    `;
+/* --- VIEW RENDERING --- */
+let _viewTransitionLock = false;
+
+function renderView(viewPath) {
+  if (_viewTransitionLock) return;
+  _viewTransitionLock = true;
+
+  const root = document.getElementById('app-root');
+
+  // Exit animation
+  const currentContent = root.querySelector('.view-transition');
+  if (currentContent) {
+    currentContent.classList.add('view-transition-exit');
+    currentContent.addEventListener('animationend', function() {
+      loadViewContent(viewPath, root);
+    }, { once: true });
+  } else {
+    loadViewContent(viewPath, root);
   }
+}
+
+
+function loadViewContent(viewPath, root) {
+  google.script.run
+    .withSuccessHandler(function(html) {
+      root.innerHTML = '<div class="view-transition">' + html + '</div>';
+      AppState.setCurrentView(viewPath);
+
+      // Dispatch custom event for view init
+      var evt = new CustomEvent('viewLoaded', { detail: { path: viewPath } });
+      document.dispatchEvent(evt);
+
+      _viewTransitionLock = false;
+    })
+    .withFailureHandler(function(err) {
+      console.error('[Router] Error cargando vista:', err);
+      _viewTransitionLock = false;
+      Toast.show('Error al cargar la vista');
+    })
+    .include(viewPath);
+}
+
+
+/* --- MODAL --- */
+function showModal(title, message, onConfirm) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML =
+    '<div class="modal-content">' +
+      '<h2 style="font-size:var(--text-lg);font-weight:700;color:var(--color-neutral-900);margin-bottom:var(--space-4);">' + title + '</h2>' +
+      '<p style="font-size:var(--text-sm);color:var(--color-neutral-600);line-height:var(--leading-loose);margin-bottom:var(--space-6);">' + message + '</p>' +
+      '<div style="display:flex;gap:var(--space-3);justify-content:flex-end;">' +
+        '<button class="btn btn-secondary" id="modal-cancel">Cancelar</button>' +
+        '<button class="btn btn-primary" id="modal-confirm">Confirmar</button>' +
+      '</div>' +
+    '</div>';
+
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#modal-cancel').addEventListener('click', function() {
+    overlay.remove();
+  });
+
+  overlay.querySelector('#modal-confirm').addEventListener('click', function() {
+    overlay.remove();
+    if (onConfirm) onConfirm();
+  });
+
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) overlay.remove();
+  });
+}
+
+
+/* --- ERROR RENDER --- */
+function renderError() {
+  var root = document.getElementById('app-root');
+  root.innerHTML =
+    '<div class="view-transition">' +
+      '<div class="error-view">' +
+        '<div class="error-card">' +
+          '<div class="error-icon-wrapper">' +
+            '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--color-error)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+              '<circle cx="12" cy="12" r="10"/>' +
+              '<line x1="12" y1="8" x2="12" y2="12"/>' +
+              '<line x1="12" y1="16" x2="12.01" y2="16"/>' +
+            '</svg>' +
+          '</div>' +
+          '<h1>Error de Conexión</h1>' +
+          '<p>No se pudo establecer comunicación con el servidor. Por favor, recarga la página o contacta a soporte.</p>' +
+          '<div style="margin-top:var(--space-6);">' +
+            '<button class="btn btn-primary" onclick="location.reload()">Reintentar</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+}
+
+
+/* --- KEYBOARD NAV --- */
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    var modal = document.querySelector('.modal-overlay');
+    if (modal) modal.remove();
+  }
+});
 </script>

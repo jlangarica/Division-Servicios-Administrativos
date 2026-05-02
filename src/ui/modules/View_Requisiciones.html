@@ -1,10 +1,110 @@
 <div class="requisiciones-view">
-  <div class="dashboard-card">
-    <h2 style="color: var(--primary-color);">📝 Gestión de Requisiciones</h2>
-    <p>Módulo para la creación y seguimiento de nuevas solicitudes de compra.</p>
-    <hr style="border: 0; border-top: 1px solid #eee; margin: 1.5rem 0;">
-    <div style="padding: 2rem; border: 2px dashed #dadce0; border-radius: 8px; text-align: center; color: #70757a;">
-      Contenido del módulo de Adquisiciones en desarrollo...
+
+  <!-- Header -->
+  <div class="card" style="margin-bottom: var(--space-6);">
+    <div class="card-accent"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--space-4);">
+      <div>
+        <h2 style="font-size:var(--text-xl);font-weight:700;color:var(--color-neutral-900);display:flex;align-items:center;gap:var(--space-3);letter-spacing:-0.3px;">
+          <span class="icon-wrapper">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+          </span>
+          Gestión de Requisiciones
+        </h2>
+        <p style="font-size:var(--text-sm);color:var(--color-neutral-500);margin-top:var(--space-1);margin-left:44px;">
+          Creación y seguimiento de solicitudes de compra
+        </p>
+      </div>
+      <button class="btn btn-primary" onclick="Toast.show('Función en desarrollo')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Nueva Requisición
+      </button>
     </div>
   </div>
+
+  <!-- Tabs -->
+  <div class="tab-group" style="margin-bottom: var(--space-6);">
+    <button class="tab-item active" onclick="switchTab(this)">Todas</button>
+    <button class="tab-item" onclick="switchTab(this)">Pendientes</button>
+    <button class="tab-item" onclick="switchTab(this)">Aprobadas</button>
+    <button class="tab-item" onclick="switchTab(this)">Rechazadas</button>
+  </div>
+
+  <!-- Requisitions Table -->
+  <div class="card" style="padding:0;overflow:hidden;">
+    <div class="table-container" style="border:none;border-radius:0;">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Folio</th>
+            <th>Descripción</th>
+            <th>Solicitante</th>
+            <th>Fecha</th>
+            <th>Estado</th>
+            <th style="text-align:center;">Acción</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="font-weight:600;color:var(--color-primary);">REQ-2024-045</td>
+            <td>Material de curación Q2</td>
+            <td>Dra. Martínez</td>
+            <td>28 Abr 2024</td>
+            <td><span class="badge badge--success"><span class="badge-dot"></span>Aprobada</span></td>
+            <td style="text-align:center;"><button class="btn btn-ghost btn-sm">Ver</button></td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;color:var(--color-primary);">REQ-2024-044</td>
+            <td>Reactivos de laboratorio</td>
+            <td>Lic. Ramírez</td>
+            <td>26 Abr 2024</td>
+            <td><span class="badge badge--warning"><span class="badge-dot"></span>Pendiente</span></td>
+            <td style="text-align:center;"><button class="btn btn-ghost btn-sm">Ver</button></td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;color:var(--color-primary);">REQ-2024-043</td>
+            <td>Equipo de oficina</td>
+            <td>Ing. López</td>
+            <td>25 Abr 2024</td>
+            <td><span class="badge badge--success"><span class="badge-dot"></span>Aprobada</span></td>
+            <td style="text-align:center;"><button class="btn btn-ghost btn-sm">Ver</button></td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;color:var(--color-primary);">REQ-2024-042</td>
+            <td>Insumos de limpieza</td>
+            <td>Lic. Hernández</td>
+            <td>24 Abr 2024</td>
+            <td><span class="badge badge--error"><span class="badge-dot"></span>Rechazada</span></td>
+            <td style="text-align:center;"><button class="btn btn-ghost btn-sm">Ver</button></td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;color:var(--color-primary);">REQ-2024-041</td>
+            <td>Medicamentos controlados</td>
+            <td>Dr. García</td>
+            <td>22 Abr 2024</td>
+            <td><span class="badge badge--warning"><span class="badge-dot"></span>Pendiente</span></td>
+            <td style="text-align:center;"><button class="btn btn-ghost btn-sm">Ver</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
+
+<script>
+function switchTab(el) {
+  el.parentElement.querySelectorAll('.tab-item').forEach(function(t) {
+    t.classList.remove('active');
+  });
+  el.classList.add('active');
+  Toast.show('Filtro aplicado: ' + el.textContent);
+}
+</script>
