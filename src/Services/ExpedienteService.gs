@@ -73,13 +73,17 @@ function processIntake(payload) {
         sheet = ss.getSheets()[0];
     }
 
-    // Una sola lectura para duplicados Y correlativo
-    const data = sheet.getDataRange().getValues();
-    const lastRow = data.length;
+    const lastRow = sheet.getLastRow();
 
-    const isDuplicate = data.some(row => row.includes(formData.oficio_solicitud));
-    if (isDuplicate) {
-      return { success: false, error: 'La referencia del oficio ya se encuentra registrada en el sistema.' };
+    if (lastRow >= 2) {
+      // 1. Solo leemos la columna de referencia (columna G = índice 7)
+      const oficiosRange = sheet.getRange(2, 7, lastRow - 1, 1); 
+      const oficios = oficiosRange.getValues().flat();
+
+      const isDuplicate = oficios.includes(formData.oficio_solicitud);
+      if (isDuplicate) {
+        return { success: false, error: 'La referencia del oficio ya se encuentra registrada en el sistema.' };
+      }
     }
 
     // Calcular folios (Correlativo numérico)
@@ -121,7 +125,8 @@ function processIntake(payload) {
       expedienteFolder.getUrl()                 // URL Drive
     ];
     
-    sheet.appendRow(rowData);
+    // 2. Escritura optimizada (appendRow es lento en transacciones grandes)
+    sheet.getRange(lastRow + 1, 1, 1, rowData.length).setValues([rowData]);
     SpreadsheetApp.flush(); // Forzar la escritura
     
     return {

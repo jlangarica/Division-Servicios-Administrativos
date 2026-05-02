@@ -200,25 +200,23 @@ function renderView(viewPath) {
 }
 
 
+// Añadir caché en memoria
+const ViewCache = new Map();
+
 function loadViewContent(viewPath, root) {
+  // 1. Cache HIT -> Renderizado instantáneo
+  if (ViewCache.has(viewPath)) {
+    injectView(ViewCache.get(viewPath), root, viewPath);
+    return;
+  }
+
+  // 2. Cache MISS -> Pedir al servidor
+  root.innerHTML = `<div class="view-transition"><div class="loader-container" style="min-height:30vh;"><div class="loader-ring"></div></div></div>`;
+
   google.script.run
     .withSuccessHandler(function(html) {
-      try {
-        // Sanitización básica: remover tags <script> si no son esperados
-        // (GAS ya sanitiza, pero defensa en profundidad)
-        const sanitized = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-
-        root.innerHTML = '<div class="view-transition">' + sanitized + '</div>';
-        AppState.setCurrentView(viewPath);
-
-        const evt = new CustomEvent('viewLoaded', { detail: { path: viewPath } });
-        document.dispatchEvent(evt);
-      } catch (renderError) {
-        console.error('[Router] Error renderizando vista:', renderError);
-        Toast.show('Error al renderizar la vista');
-      } finally {
-        _viewTransitionLock = false;
-      }
+      ViewCache.set(viewPath, html); // Guardar en caché
+      injectView(html, root, viewPath);
     })
     .withFailureHandler(function(err) {
       console.error('[Router] Error cargando vista:', err);
@@ -226,6 +224,29 @@ function loadViewContent(viewPath, root) {
       Toast.show('Error al cargar la vista');
     })
     .include(viewPath);
+}
+
+function injectView(html, root, viewPath) {
+  try {
+    const sanitized = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    root.innerHTML = '<div class="view-transition">' + sanitized + '</div>';
+    AppState.setCurrentView(viewPath);
+
+    // Focus management para accesibilidad
+    const transitionEl = root.querySelector('.view-transition');
+    if (transitionEl) {
+      transitionEl.setAttribute('tabindex', '-1');
+      transitionEl.focus({ preventScroll: true });
+    }
+
+    const evt = new CustomEvent('viewLoaded', { detail: { path: viewPath } });
+    document.dispatchEvent(evt);
+  } catch (renderError) {
+    console.error('[Router] Error renderizando vista:', renderError);
+    Toast.show('Error al renderizar la vista');
+  } finally {
+    _viewTransitionLock = false;
+  }
 }
 
 

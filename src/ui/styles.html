@@ -1295,4 +1295,19 @@ a:focus:not(:focus-visible) {
     animation: none !important;
   }
 }
+
+/* --- 26. LAYOUT UTILITIES (Evitar inline styles) --- */
+.flex-between-wrap {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.flex-center-gap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
 </style>

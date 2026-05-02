@@ -79,31 +79,36 @@ function getActiveUserSession() {
  * @private
  */
 function lookupUserInSheet(email) {
-  const ss = SpreadsheetApp.openById(SS_CONFIG_ID);
-  const sheet = ss.getSheetByName(SHEETS.USUARIOS);
+  const cache = CacheService.getScriptCache();
+  const mapCacheKey = 'all_users_map';
+  const cachedMap = cache.get(mapCacheKey);
+  
+  let userMap;
 
-  if (!sheet) {
-    throw new Error('Hoja "' + SHEETS.USUARIOS + '" no encontrada en Spreadsheet de configuración.');
-  }
+  if (cachedMap) {
+    // Map no se puede cachear directamente, se usa Array de pares
+    userMap = new Map(JSON.parse(cachedMap)); 
+  } else {
+    const ss = SpreadsheetApp.openById(SS_CONFIG_ID);
+    const sheet = ss.getSheetByName(SHEETS.USUARIOS);
+    if (!sheet) throw new Error('Hoja no encontrada');
 
-  const lastRow = sheet.getLastRow();
-  if (lastRow < 2) return null; // Sin datos
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return null;
 
-  // Batch read: A2:E{lastRow}
-  const data = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
+    const data = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
+    userMap = new Map();
 
-  // Construir Map<email, UserDTO> para O(1) lookup
-  const userMap = new Map();
-  for (const row of data) {
-    if (row[2]) {
-      userMap.set(String(row[2]).toLowerCase(), {
-        id:     String(row[0]),
-        name:   String(row[1]),
-        email:  String(row[2]),
-        role:   String(row[3]),
-        prefix: String(row[4]),
-      });
+    for (const row of data) {
+      if (row[2]) {
+        userMap.set(String(row[2]).toLowerCase(), {
+          id: String(row[0]), name: String(row[1]), email: String(row[2]),
+          role: String(row[3]), prefix: String(row[4]),
+        });
+      }
     }
+    // Cachear todo el mapa (máx 100kb permitidos, suficiente para ~1000 usuarios)
+    cache.put(mapCacheKey, JSON.stringify([...userMap]), CACHE_TTL.LOOKUP_DATA);
   }
 
   return userMap.get(email.toLowerCase()) || null;
