@@ -513,7 +513,7 @@ function handleProcessIntake(event) {
 document.addEventListener('viewLoaded', function(e) {
   if (e.detail.path === 'ui/modules/View_Dashboard') {
     initDashboard();
-  } else if (e.detail.path === 'ui/modules/View_Requisiciones') {
+  } else if (e.detail.path === 'ui/modules/View_Solicitudes') {
     const fechaEl = document.getElementById('intake-fecha');
     if (fechaEl) fechaEl.valueAsDate = new Date();
     setupFormListeners();
