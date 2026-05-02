@@ -269,7 +269,85 @@ function renderError() {
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
     var modal = document.querySelector('.modal-overlay');
-    if (modal) modal.remove();
+    if (modal) {
+      // Ignorar si es el modal de ingreso de oficio ya que no tiene clase .modal-overlay directa sino display
+      if(modal.id !== 'modal-ingreso-oficio') {
+          modal.remove();
+      }
+    }
+    
+    var modalOficio = document.getElementById('modal-ingreso-oficio');
+    if (modalOficio && modalOficio.style.display === 'flex') {
+      cerrarModalIngresoOficio();
+    }
   }
 });
+
+/* --- LOGIC: Ingreso de Oficio --- */
+function procesarIngresoOficio(event) {
+  event.preventDefault();
+  
+  const btnSubmit = document.getElementById('btn-submit-oficio');
+  const btnCancel = document.getElementById('btn-cancelar-oficio');
+  const originalText = btnSubmit.textContent;
+  
+  btnSubmit.disabled = true;
+  btnCancel.disabled = true;
+  btnSubmit.innerHTML = '<span class="loader-dots" style="transform:scale(0.5);margin-right:8px;"><span></span><span></span><span></span></span> Procesando...';
+  
+  const fileInput = document.getElementById('oficio-archivo');
+  const file = fileInput.files[0];
+  
+  if (!file) {
+    Toast.show('Por favor seleccione un archivo PDF.');
+    btnSubmit.disabled = false;
+    btnCancel.disabled = false;
+    btnSubmit.textContent = originalText;
+    return;
+  }
+  
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    // El resultado viene como "data:application/pdf;base64,JVBERi..."
+    const base64Data = e.target.result.split(',')[1];
+    
+    const payload = {
+      tipoTramite: document.getElementById('oficio-tipo').value,
+      fechaRecepcion: document.getElementById('oficio-fecha').value,
+      servicioSolicitante: document.getElementById('oficio-servicio').value,
+      descripcion: document.getElementById('oficio-descripcion').value,
+      archivoBase64: base64Data,
+      archivoMimeType: file.type,
+      archivoNombre: file.name
+    };
+    
+    // Llamada RPC
+    google.script.run
+      .withSuccessHandler(function(response) {
+        btnSubmit.disabled = false;
+        btnCancel.disabled = false;
+        btnSubmit.textContent = originalText;
+        
+        if (response.success) {
+          cerrarModalIngresoOficio();
+          Toast.show('Expediente creado exitosamente: ' + response.folio);
+          console.log('[App] Expediente creado en:', response.folderUrl);
+          // Opcionalmente, refrescar la tabla aquí
+        } else {
+          Toast.show('Error: ' + response.error);
+          console.error('[App] Error al registrar:', response.error);
+        }
+      })
+      .withFailureHandler(function(err) {
+        btnSubmit.disabled = false;
+        btnCancel.disabled = false;
+        btnSubmit.textContent = originalText;
+        Toast.show('Fallo de conexión con el servidor.');
+        console.error(err);
+      })
+      .registrarIngresoOficio(payload);
+  };
+  
+  reader.readAsDataURL(file);
+}
 </script>

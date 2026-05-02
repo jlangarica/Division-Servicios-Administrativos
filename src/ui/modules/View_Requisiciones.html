@@ -20,11 +20,11 @@
           Creación y seguimiento de solicitudes de compra
         </p>
       </div>
-      <button class="btn btn-primary" onclick="Toast.show('Función en desarrollo')">
+      <button class="btn btn-primary" onclick="abrirModalIngresoOficio()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
-        Nueva Requisición
+        Ingreso de Oficio
       </button>
     </div>
   </div>
@@ -99,6 +99,56 @@
 
 </div>
 
+<!-- Modal: Ingreso de Oficio -->
+<div id="modal-ingreso-oficio" class="modal-overlay" style="display:none;">
+  <div class="modal-content" style="max-width:540px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-5);">
+      <h2 style="font-size:var(--text-lg);font-weight:700;color:var(--color-neutral-900);">Registro de Oficio</h2>
+      <button class="btn-ghost" style="padding:var(--space-1);border-radius:var(--radius-sm);" onclick="cerrarModalIngresoOficio()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-600)" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    
+    <form id="form-ingreso-oficio" onsubmit="procesarIngresoOficio(event)">
+      <div class="grid-2col">
+        <div class="input-group">
+          <label style="display:block;font-size:var(--text-xs);font-weight:600;color:var(--color-neutral-700);margin-bottom:var(--space-1);">Tipo de Trámite</label>
+          <select id="oficio-tipo" class="input-field" required>
+            <option value="" disabled selected>Seleccione...</option>
+            <option value="COMPRA POR FONDO">Compra por Fondo</option>
+            <option value="LICITACION PUBLICA">Licitación Pública</option>
+            <option value="ADJUDICACION DIRECTA">Adjudicación Directa</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label style="display:block;font-size:var(--text-xs);font-weight:600;color:var(--color-neutral-700);margin-bottom:var(--space-1);">Fecha de Recepción</label>
+          <input type="date" id="oficio-fecha" class="input-field" required>
+        </div>
+      </div>
+      
+      <div class="input-group">
+        <label style="display:block;font-size:var(--text-xs);font-weight:600;color:var(--color-neutral-700);margin-bottom:var(--space-1);">Servicio / Unidad Solicitante</label>
+        <input type="text" id="oficio-servicio" class="input-field" placeholder="Ej. Laboratorio Clínico" required>
+      </div>
+
+      <div class="input-group">
+        <label style="display:block;font-size:var(--text-xs);font-weight:600;color:var(--color-neutral-700);margin-bottom:var(--space-1);">Descripción Breve</label>
+        <input type="text" id="oficio-descripcion" class="input-field" placeholder="Material requerido..." required>
+      </div>
+
+      <div class="input-group" style="margin-bottom:var(--space-6);">
+        <label style="display:block;font-size:var(--text-xs);font-weight:600;color:var(--color-neutral-700);margin-bottom:var(--space-1);">Oficio Escaneado (Solo PDF)</label>
+        <input type="file" id="oficio-archivo" accept=".pdf" class="input-field" style="padding:var(--space-2);" required>
+      </div>
+
+      <div style="display:flex;gap:var(--space-3);justify-content:flex-end;">
+        <button type="button" class="btn btn-secondary" onclick="cerrarModalIngresoOficio()" id="btn-cancelar-oficio">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-submit-oficio">Registrar Expediente</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 function switchTab(el) {
   el.parentElement.querySelectorAll('.tab-item').forEach(function(t) {
@@ -106,5 +156,16 @@ function switchTab(el) {
   });
   el.classList.add('active');
   Toast.show('Filtro aplicado: ' + el.textContent);
+}
+
+function abrirModalIngresoOficio() {
+  document.getElementById('modal-ingreso-oficio').style.display = 'flex';
+  // Set today as default date
+  document.getElementById('oficio-fecha').valueAsDate = new Date();
+}
+
+function cerrarModalIngresoOficio() {
+  document.getElementById('modal-ingreso-oficio').style.display = 'none';
+  document.getElementById('form-ingreso-oficio').reset();
 }
 </script>
