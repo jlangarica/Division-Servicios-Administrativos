@@ -6,42 +6,55 @@
  */
 
 /**
- * @typedef {Object} RequestDTO
- * @property {string} tipoTramite
- * @property {string} fechaRecepcion
- * @property {string} servicioSolicitante
- * @property {string} descripcion
- * @property {string} archivoBase64
- * @property {string} archivoMimeType
- * @property {string} archivoNombre
+ * @typedef {Object} FileData
+ * @property {string} base64
+ * @property {string} fileName
+ * @property {string} mimeType
+ *
+ * @typedef {Object} FormData
+ * @property {string} tipo_tramite
+ * @property {string} fecha_recepcion
+ * @property {string} servicio_solicitante
+ * @property {string} oficio_solicitud
+ * @property {string} atiende
+ *
+ * @typedef {Object} IntakeDTO
+ * @property {FileData} fileData
+ * @property {FormData} formData
  */
 
 /**
  * Registra el ingreso de un oficio, creando una entidad digital centralizada.
  * Utiliza LockService para concurrencia.
  *
- * @param {RequestDTO} payload Datos desde el Frontend.
- * @returns {Object} Respuesta {success, folio, folderUrl, error}
+ * @param {IntakeDTO} payload Datos desde el Frontend.
+ * @returns {Object} Respuesta {success, folio, viewUrl, fileId, error}
  */
-function registrarIngresoOficio(payload) {
+function processIntake(payload) {
   const lock = LockService.getScriptLock();
   try {
     // 1. Asignación de Folio (Bloqueo de concurrencia)
     // Espera hasta 10 segundos para adquirir el lock
     lock.waitLock(10000);
     
-    // Obtener hoja de adquisiciones
-    const ssAdq = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
-    let sheet = ssAdq.getSheetByName(SHEETS.ADQUISICIONES);
+    // Obtener hoja de base de datos
+    const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
+    let sheet = ss.getSheetByName(SHEETS.BASE_DATOS);
     if (!sheet) {
         // Fallback a la primera hoja si no existe por nombre
-        sheet = ssAdq.getSheets()[0];
+        sheet = ss.getSheets()[0];
+    }
+
+    // Validación de Negocio: Duplicidad de oficio
+    const data = sheet.getDataRange().getValues();
+    const isDuplicate = data.some(row => row.includes(payload.formData.oficio_solicitud));
+    if (isDuplicate) {
+      return { success: false, error: 'La referencia del oficio de solicitud ya se encuentra registrada en el sistema.' };
     }
 
     // Calcular folios (Correlativo numérico)
     const lastRow = sheet.getLastRow();
-    // Descontamos la cabecera (asumimos 1 fila de cabecera).
-    // Si lastRow es 1 (solo cabecera), correlativo es 1.
+    // Descontamos la cabecera
     const correlativo = lastRow === 0 ? 1 : lastRow; 
     const anio = new Date().getFullYear();
     
@@ -49,27 +62,34 @@ function registrarIngresoOficio(payload) {
     const idFolio = `${correlativo}/${anio}`;
     const folioDsa = `DSA-${anio}-${String(correlativo).padStart(3, '0')}`;
 
+    // Formato de Fecha: YYYY-MM-DD -> DD/MM/YYYY
+    const partesFecha = payload.formData.fecha_recepcion.split('-');
+    let fechaFormateada = payload.formData.fecha_recepcion;
+    if (partesFecha.length === 3) {
+      fechaFormateada = `${partesFecha[2]}/${partesFecha[1]}/${partesFecha[0]}`;
+    }
+
     // 2. Estructura en Drive
     const rootFolder = DriveApp.getFolderById(DRIVE_CONFIG.EXPEDIENTES_FOLDER_ID);
     const expedienteFolder = rootFolder.createFolder(`Folio_${folioDsa}_DSA`);
     
     // 3. Persistencia del Archivo Oficio
-    const decodedFile = Utilities.base64Decode(payload.archivoBase64);
-    const blob = Utilities.newBlob(decodedFile, payload.archivoMimeType, `Oficio_Solicitud_${folioDsa}.pdf`);
+    const decodedFile = Utilities.base64Decode(payload.fileData.base64);
+    const blob = Utilities.newBlob(decodedFile, payload.fileData.mimeType, `Oficio_${folioDsa}_${payload.fileData.fileName}`);
     const file = expedienteFolder.createFile(blob);
     
     // 4. Registro en Base de Datos (Sheets)
     // Orden de columnas en el Segmento [1] de Ingreso:
-    // [ID_UUID, id_folio, folio_dsa, tipo_tramite, fecha_recepcion, servicio_solicitante, oficio_solicitud (URL)]
     const rowData = [
-      idInterno,               // UUID
-      idFolio,                 // 1/2026
-      folioDsa,                // DSA-2026-001
-      payload.tipoTramite,     // COMPRA POR FONDO
-      payload.fechaRecepcion,  // Fecha
-      payload.servicioSolicitante, 
-      expedienteFolder.getUrl(), // URL Drive
-      payload.descripcion      // Descripcion
+      idInterno,                                // UUID
+      idFolio,                                  // 1/2026
+      folioDsa,                                 // DSA-2026-001
+      payload.formData.tipo_tramite,            // COMPRA POR FONDO
+      fechaFormateada,                          // DD/MM/YYYY
+      payload.formData.servicio_solicitante,    // Unidad
+      payload.formData.oficio_solicitud,        // Referencia
+      payload.formData.atiende,                 // Correo sesión
+      expedienteFolder.getUrl()                 // URL Drive
     ];
     
     sheet.appendRow(rowData);
@@ -78,11 +98,12 @@ function registrarIngresoOficio(payload) {
     return {
       success: true,
       folio: folioDsa,
-      folderUrl: expedienteFolder.getUrl()
+      viewUrl: file.getUrl(),
+      fileId: file.getId()
     };
     
   } catch (error) {
-    console.error('[ExpedienteService] Error en registrarIngresoOficio:', error);
+    console.error('[ExpedienteService] Error en processIntake:', error);
     return { success: false, error: error.message };
   } finally {
     // Liberar siempre el lock

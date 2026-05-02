@@ -283,105 +283,151 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
-/* --- LOGIC: Ingreso de Oficio --- */
-function procesarIngresoOficio(event) {
-  event.preventDefault();
-  
-  const btnSubmit = document.getElementById('btn-submit-oficio');
-  const btnCancel = document.getElementById('btn-cancelar-oficio');
-  const originalText = btnSubmit.textContent;
-  
-  btnSubmit.disabled = true;
-  btnCancel.disabled = true;
-  btnSubmit.innerHTML = '<span class="loader-dots" style="transform:scale(0.5);margin-right:8px;"><span></span><span></span><span></span></span> Procesando...';
-  
-  const fileInput = document.getElementById('oficio-archivo');
-  const file = fileInput.files[0];
-  
-  if (!file) {
-    Toast.show('Por favor seleccione un archivo PDF.');
-    btnSubmit.disabled = false;
-    btnCancel.disabled = false;
-    btnSubmit.textContent = originalText;
+/* --- LOGIC: Ingreso de Oficio (Split View con PDF.js) --- */
+let pdfDoc = null;
+let pageNum = 1;
+let currentZoom = 1.0;
+
+function handleFileSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (file.type !== 'application/pdf') {
+    Toast.show('Por favor seleccione un archivo PDF válido');
     return;
   }
   
   const reader = new FileReader();
   reader.onload = function(e) {
-    // El resultado viene como "data:application/pdf;base64,JVBERi..."
+    const typedarray = new Uint8Array(e.target.result);
+    renderPDF(typedarray);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderPDF(data) {
+  if (typeof pdfjsLib === 'undefined') {
+    console.error('PDF.js no está cargado.');
+    Toast.show('Error: Motor de PDF no disponible.');
+    return;
+  }
+  
+  pdfjsLib.getDocument(data).promise.then(function(pdf) {
+    pdfDoc = pdf;
+    document.getElementById('page-count').textContent = pdf.numPages;
+    document.getElementById('pdf-empty-state').style.display = 'none';
+    document.getElementById('pdf-toolbar').style.display = 'flex';
+    document.getElementById('pdf-canvas').style.display = 'block';
+    pageNum = 1;
+    queueRenderPage(pageNum);
+  }).catch(function(err) {
+    console.error('Error al renderizar PDF:', err);
+    Toast.show('Error al procesar el visor PDF');
+  });
+}
+
+function queueRenderPage(num) {
+  if (pdfDoc) {
+    pdfDoc.getPage(num).then(function(page) {
+      const canvas = document.getElementById('pdf-canvas');
+      const ctx = canvas.getContext('2d');
+      const viewport = page.getViewport({scale: currentZoom});
+      
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+      
+      const renderContext = {
+        canvasContext: ctx,
+        viewport: viewport
+      };
+      page.render(renderContext);
+      
+      document.getElementById('page-num').textContent = num;
+    });
+  }
+}
+
+function changePage(offset) {
+  if (!pdfDoc) return;
+  const newPage = pageNum + offset;
+  if (newPage >= 1 && newPage <= pdfDoc.numPages) {
+    pageNum = newPage;
+    queueRenderPage(pageNum);
+  }
+}
+
+function zoomPDF(offset) {
+  currentZoom += offset;
+  if (currentZoom < 0.5) currentZoom = 0.5;
+  if (currentZoom > 3.0) currentZoom = 3.0;
+  queueRenderPage(pageNum);
+}
+
+function handleProcessIntake(event) {
+  event.preventDefault();
+  
+  const fileInput = document.getElementById('intake-file');
+  const file = fileInput.files[0];
+  if (!file) {
+    Toast.show('Falta archivo PDF');
+    return;
+  }
+  
+  const btn = document.getElementById('btn-submit-intake');
+  const ogText = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loader-dots" style="transform:scale(0.5);margin-right:8px;"><span></span><span></span><span></span></span> Guardando...';
+  
+  const reader = new FileReader();
+  reader.onload = function(e) {
     const base64Data = e.target.result.split(',')[1];
     
     const payload = {
-      tipoTramite: document.getElementById('oficio-tipo').value,
-      fechaRecepcion: document.getElementById('oficio-fecha').value,
-      servicioSolicitante: document.getElementById('oficio-servicio').value,
-      descripcion: document.getElementById('oficio-descripcion').value,
-      archivoBase64: base64Data,
-      archivoMimeType: file.type,
-      archivoNombre: file.name
+      fileData: {
+        base64: base64Data,
+        fileName: file.name,
+        mimeType: file.type
+      },
+      formData: {
+        tipo_tramite: document.getElementById('intake-tipo').value,
+        fecha_recepcion: document.getElementById('intake-fecha').value,
+        servicio_solicitante: document.getElementById('intake-servicio').value,
+        oficio_solicitud: document.getElementById('intake-oficio').value,
+        atiende: AppState.user.email
+      }
     };
     
-    // Llamada RPC
     google.script.run
-      .withSuccessHandler(function(response) {
-        btnSubmit.disabled = false;
-        btnCancel.disabled = false;
-        btnSubmit.textContent = originalText;
-        
-        if (response.success) {
-          cerrarModalIngresoOficio();
-          Toast.show('Expediente creado exitosamente: ' + response.folio);
-          console.log('[App] Expediente creado en:', response.folderUrl);
-          // Opcionalmente, refrescar la tabla aquí
+      .withSuccessHandler(function(res) {
+        btn.disabled = false;
+        btn.textContent = ogText;
+        if (res.success) {
+          Toast.show('¡Expediente generado! Folio: ' + res.folio);
+          document.getElementById('form-intake').reset();
+          document.getElementById('pdf-empty-state').style.display = 'block';
+          document.getElementById('pdf-toolbar').style.display = 'none';
+          document.getElementById('pdf-canvas').style.display = 'none';
+          pdfDoc = null;
         } else {
-          Toast.show('Error: ' + response.error);
-          console.error('[App] Error al registrar:', response.error);
+          Toast.show('Error: ' + res.error);
         }
       })
       .withFailureHandler(function(err) {
-        btnSubmit.disabled = false;
-        btnCancel.disabled = false;
-        btnSubmit.textContent = originalText;
-        Toast.show('Fallo de conexión con el servidor.');
-        console.error(err);
+        btn.disabled = false;
+        btn.textContent = ogText;
+        Toast.show('Fallo de red al enviar');
       })
-      .registrarIngresoOficio(payload);
+      .processIntake(payload);
   };
-  
   reader.readAsDataURL(file);
-}
-
-/* --- LOGIC: Requisiciones UI --- */
-function switchTab(el) {
-  el.parentElement.querySelectorAll('.tab-item').forEach(function(t) {
-    t.classList.remove('active');
-  });
-  el.classList.add('active');
-  Toast.show('Filtro aplicado: ' + el.textContent);
-}
-
-function abrirModalIngresoOficio() {
-  var modal = document.getElementById('modal-ingreso-oficio');
-  if (modal) {
-    modal.style.display = 'flex';
-    var fechaEl = document.getElementById('oficio-fecha');
-    if (fechaEl) fechaEl.valueAsDate = new Date();
-  }
-}
-
-function cerrarModalIngresoOficio() {
-  var modal = document.getElementById('modal-ingreso-oficio');
-  if (modal) {
-    modal.style.display = 'none';
-    var form = document.getElementById('form-ingreso-oficio');
-    if (form) form.reset();
-  }
 }
 
 /* --- VIEW INITIALIZATION HANDLERS --- */
 document.addEventListener('viewLoaded', function(e) {
   if (e.detail.path === 'ui/modules/View_Dashboard') {
     initDashboard();
+  } else if (e.detail.path === 'ui/modules/View_Requisiciones') {
+    const fechaEl = document.getElementById('intake-fecha');
+    if (fechaEl) fechaEl.valueAsDate = new Date();
   }
 });
 
