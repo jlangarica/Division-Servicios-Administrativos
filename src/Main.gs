@@ -16,6 +16,6 @@ function doGet(e) {
  * @param {string} filename Nombre del archivo a incluir.
  * @returns {string} Contenido del archivo.
  */
-function include(filename: string) {
+function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
