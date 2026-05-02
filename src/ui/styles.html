@@ -1310,4 +1310,16 @@ a:focus:not(:focus-visible) {
   align-items: center;
   gap: var(--space-3);
 }
+
+/* --- 27. CSS :has() FORM VALIDATION (Elimina JS Listeners) --- */
+.form-panel .glass-input-group:has(select:invalid, input:placeholder-shown) .step-num {
+  background: var(--color-neutral-200);
+}
+.form-panel .glass-input-group:has(select:valid, input:not(:placeholder-shown)) .step-num {
+  background: var(--color-success);
+  color: white;
+}
+.form-panel .progress-segment[data-field]:has(~ .drop-zone.has-file) {
+  background: var(--color-primary);
+}
 </style>

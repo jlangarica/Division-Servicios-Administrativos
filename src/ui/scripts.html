@@ -200,30 +200,48 @@ function renderView(viewPath) {
 }
 
 
-// Añadir caché en memoria
-const ViewCache = new Map();
+/* LRU Cache simple (máx 5 vistas en memoria) */
+const ViewLRU = new Map();
+function cacheView(path, html) {
+  if (ViewLRU.size >= 5) { const first = ViewLRU.keys().next().value; ViewLRU.delete(first); }
+  ViewLRU.set(path, html);
+}
+
+const AsyncRunner = (() => {
+  let _requestId = 0;
+  return {
+    run(methodName, payload) {
+      const thisReq = ++_requestId;
+      return new Promise((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler((res) => thisReq === _requestId ? resolve(res) : console.warn(`[AsyncRunner] Ignored stale response: ${methodName}`))
+          .withFailureHandler((err) => thisReq === _requestId ? reject(err) : null)
+          [methodName](payload);
+      });
+    }
+  };
+})();
 
 function loadViewContent(viewPath, root) {
   // 1. Cache HIT -> Renderizado instantáneo
-  if (ViewCache.has(viewPath)) {
-    injectView(ViewCache.get(viewPath), root, viewPath);
+  if (ViewLRU.has(viewPath)) {
+    injectView(ViewLRU.get(viewPath), root, viewPath);
     return;
   }
 
   // 2. Cache MISS -> Pedir al servidor
   root.innerHTML = `<div class="view-transition"><div class="loader-container" style="min-height:30vh;"><div class="loader-ring"></div></div></div>`;
 
-  google.script.run
-    .withSuccessHandler(function(html) {
-      ViewCache.set(viewPath, html); // Guardar en caché
+  AsyncRunner.run('include', viewPath)
+    .then(html => {
+      cacheView(viewPath, html);
       injectView(html, root, viewPath);
     })
-    .withFailureHandler(function(err) {
+    .catch(err => {
       console.error('[Router] Error cargando vista:', err);
       _viewTransitionLock = false;
       Toast.show('Error al cargar la vista');
-    })
-    .include(viewPath);
+    });
 }
 
 function injectView(html, root, viewPath) {
@@ -250,6 +268,18 @@ function injectView(html, root, viewPath) {
 }
 
 
+/* Focus Trap accesible para modales */
+function trapFocus(element) {
+  const focusables = element.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+  if (focusables.length === 0) return;
+  const first = focusables[0], last = focusables[focusables.length - 1];
+  element.addEventListener('keydown', e => {
+    if (e.key !== 'Tab') return;
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+}
+
 /* --- MODAL --- */
 function showModal(title, message, onConfirm) {
   const overlay = document.createElement('div');
@@ -265,6 +295,8 @@ function showModal(title, message, onConfirm) {
     '</div>';
 
   document.body.appendChild(overlay);
+
+  trapFocus(overlay.querySelector('.modal-content'));
 
   overlay.querySelector('#modal-cancel').addEventListener('click', function() {
     overlay.remove();
@@ -440,33 +472,12 @@ function zoomPDF(offset) {
 }
 
 function updateFormProgress() {
-  const fields = {
-    file: document.getElementById('intake-file') && document.getElementById('intake-file').files.length > 0,
-    oficio: document.getElementById('intake-oficio') && document.getElementById('intake-oficio').value.trim() !== '',
-    tipo: document.getElementById('intake-tipo') && document.getElementById('intake-tipo').value !== '',
-    fecha: document.getElementById('intake-fecha') && document.getElementById('intake-fecha').value !== '',
-    servicio: document.getElementById('intake-servicio') && document.getElementById('intake-servicio').value.trim() !== ''
-  };
-
-  document.querySelectorAll('.progress-segment').forEach(function(seg) {
-    const field = seg.getAttribute('data-field');
-    if (fields[field]) {
-      seg.classList.add('filled');
-    } else {
-      seg.classList.remove('filled');
-    }
-  });
+  // Delegado al motor CSS con la pseudo-clase :has()
 }
 
 function setupFormListeners() {
-  ['intake-oficio', 'intake-tipo', 'intake-fecha', 'intake-servicio'].forEach(function(id) {
-    const el = document.getElementById(id);
-    if (el) {
-      el.addEventListener('input', updateFormProgress);
-      el.addEventListener('change', updateFormProgress);
-    }
-  });
-
+  // Listeners de validación visual delegados a CSS :has()
+  
   const dropZone = document.getElementById('drop-zone');
   if (dropZone) {
     dropZone.addEventListener('dragover', function(e) {
