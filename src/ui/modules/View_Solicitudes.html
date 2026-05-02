@@ -140,6 +140,15 @@
   .submit-btn.loading .btn-shimmer { animation: none; opacity: 0; }
   .submit-btn.loading svg { display: none; }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Cambia el estilo inline del panel derecho o añade esta clase */
+  .card[style*="flex: 1 1 35%"] {
+    background: var(--glass-bg) !important;
+    backdrop-filter: var(--glass-blur) !important;
+    -webkit-backdrop-filter: var(--glass-blur) !important;
+    border: 1px solid rgba(var(--color-primary-rgb), 0.08) !important;
+    box-shadow: var(--shadow-aura-md) !important;
+  }
 </style>
 
 <div class="split-view" style="display:flex; flex-wrap:wrap; height:calc(100vh - 80px); gap:var(--space-4); box-sizing:border-box;">
