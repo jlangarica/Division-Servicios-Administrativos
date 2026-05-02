@@ -44,3 +44,8 @@ const APP_CONFIG = Object.freeze({
   TITLE: 'Sistema de Compras HCG',
   BRAND: 'DSA | Compras',
 });
+
+// Validación de carga (fail-fast)
+if (!SS_CONFIG_ID || !SS_ADQUISICIONES_ID) {
+  throw new Error('Faltan IDs de configuración crítica en Config.gs');
+}
