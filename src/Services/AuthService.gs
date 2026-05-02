@@ -81,8 +81,12 @@ function getActiveUserSession() {
 function lookupUserInSheet(email) {
   const cache = CacheService.getScriptCache();
   const mapCacheKey = 'all_users_map';
-  const cachedMap = cache.get(mapCacheKey);
+  let cachedMap = cache.get(mapCacheKey);
   
+  if (cachedMap === '__FALLBACK__') {
+    cachedMap = PropertiesService.getScriptProperties().getProperty('USERS_MAP_FALLBACK');
+  }
+
   let userMap;
 
   if (cachedMap) {
