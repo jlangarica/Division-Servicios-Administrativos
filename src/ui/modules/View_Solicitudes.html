@@ -131,7 +131,7 @@
 <div class="split-view" style="display:flex; flex-wrap:wrap; height:calc(100vh - 80px); gap:var(--space-4); box-sizing:border-box;">
   
   <!-- PANEL IZQUIERDO: Visor PDF -->
-  <div class="card" style="flex: 1 1 60%; min-width: 300px; display:flex; flex-direction:column; position:relative; overflow:hidden; padding:0;">
+  <div class="card" style="flex: 1 1 58%; min-width:300px; display:flex; flex-direction:column; position:relative; overflow:hidden; padding:0;">
     <div style="padding:14px 20px; background:var(--color-surface-dim); border-bottom:1px solid var(--color-neutral-200); display:flex; justify-content:space-between; align-items:center; z-index:3;">
       <div style="font-weight:600; color:var(--color-neutral-900); display:flex; align-items:center; gap:10px; font-size:14px;">
         <span style="width:32px; height:32px; border-radius:var(--radius-sm); background:rgba(15, 52, 96, 0.08); display:flex; align-items:center; justify-content:center; color:var(--color-primary);">
@@ -175,25 +175,31 @@
   </div>
 
   <!-- PANEL DERECHO: Formulario -->
-  <div class="card" style="flex: 1 1 35%; min-width: 320px; display:flex; flex-direction:column; overflow-y:auto; background:var(--color-surface-dim); padding:28px 26px;">
-    
-    <h2 style="font-size:22px; font-weight:700; color:var(--color-neutral-900); margin-bottom:28px; display:flex; align-items:center; gap:12px; letter-spacing:-0.02em;">
-      <span style="width:40px; height:40px; border-radius:12px; background:linear-gradient(135deg, var(--color-primary), #1A5276); display:flex; align-items:center; justify-content:center; color:#fff; flex-shrink:0; box-shadow:0 4px 14px rgba(15, 52, 96, 0.25);">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-      </span>
-      Captura de Oficio
-      <span style="font-size:10px; font-weight:600; padding:3px 8px; background:rgba(233, 69, 96, 0.1); color:var(--color-secondary); border-radius:6px; letter-spacing:0.04em; text-transform:uppercase; margin-left:auto;">Nuevo</span>
-    </h2>
+  <div class="card" style="flex: 0 0 360px; min-width:320px; max-width:400px; display:flex; flex-direction:column; overflow-y:auto; background:var(--color-surface-dim); padding:28px 26px;">
 
-    <div class="form-progress" id="form-progress">
-      <div class="progress-segment" data-field="file"></div>
-      <div class="progress-segment" data-field="oficio"></div>
-      <div class="progress-segment" data-field="tipo"></div>
-      <div class="progress-segment" data-field="fecha"></div>
-      <div class="progress-segment" data-field="servicio"></div>
+    <!-- Título compacto -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--space-5); padding-bottom:var(--space-4); border-bottom:1px solid var(--color-neutral-200);">
+      <div style="display:flex; align-items:center; gap:var(--space-3);">
+        <span style="width:8px; height:8px; border-radius:50%; background:var(--color-primary); flex-shrink:0;"></span>
+        <h2 style="font-size:var(--text-md); font-weight:700; color:var(--color-neutral-900);">Captura de Oficio</h2>
+      </div>
+      <span style="font-size:10px; font-weight:600; padding:3px 8px; background:rgba(233,69,96,0.1); color:var(--color-secondary); border-radius:6px; text-transform:uppercase;">Nuevo</span>
     </div>
-    
-    <form id="form-intake" onsubmit="handleProcessIntake(event)">
+
+    <!-- Layout: stepper lateral + formulario -->
+    <div style="display:flex; gap:var(--space-4); flex:1;">
+
+      <!-- Stepper vertical -->
+      <div id="form-progress" class="form-progress" style="display:flex; flex-direction:column; align-items:center; gap:0; padding-top:10px; flex-shrink:0; width:6px;">
+        <div class="progress-segment" data-field="file"     style="width:2px; flex:1;"></div>
+        <div class="progress-segment" data-field="oficio"   style="width:2px; flex:1;"></div>
+        <div class="progress-segment" data-field="tipo"     style="width:2px; flex:1;"></div>
+        <div class="progress-segment" data-field="fecha"    style="width:2px; flex:1;"></div>
+        <div class="progress-segment" data-field="servicio" style="width:2px; flex:1;"></div>
+      </div>
+
+      <!-- Formulario sin cambios -->
+      <form id="form-intake" onsubmit="handleProcessIntake(event)" style="flex:1;">
       <!-- Zona de carga de archivo -->
       <div class="drop-zone" id="drop-zone">
         <input type="file" id="intake-file" accept=".pdf" required onchange="handleFileSelect(event)">
@@ -263,5 +269,6 @@
         </span>
       </button>
     </form>
+    </div>
   </div>
 </div>

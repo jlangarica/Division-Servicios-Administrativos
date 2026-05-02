@@ -1,14 +1,14 @@
 <div class="dashboard-view">
 
   <!-- Header -->
-  <div class="card" style="margin-bottom: var(--space-6);">
-    <div class="card-accent"></div>
+  <div style="margin-bottom:var(--space-8); padding-bottom:var(--space-6); border-bottom:1px solid var(--color-neutral-200);">
     <div class="flex-between-wrap">
-      <div>
-        <h1 style="font-size:var(--text-2xl);font-weight:700;color:var(--color-neutral-900);letter-spacing:-0.5px;margin-bottom:var(--space-1);">
-          Panel de Control
-        </h1>
-        <p id="welcome-msg" style="font-size:var(--text-sm);color:var(--color-neutral-500);"></p>
+      <div style="display:flex; align-items:flex-start; gap:var(--space-4);">
+        <div style="width:4px; height:56px; border-radius:var(--radius-full); background:var(--color-primary); flex-shrink:0; margin-top:2px;"></div>
+        <div>
+          <h1 style="font-size:var(--text-3xl);font-weight:700;color:var(--color-neutral-900);letter-spacing:-0.5px;margin-bottom:var(--space-1);">Panel de Control</h1>
+          <p id="welcome-msg" style="font-size:var(--text-sm);color:var(--color-neutral-500);"></p>
+        </div>
       </div>
       <div class="flex-center-gap">
         <span id="user-role-badge" class="badge badge--primary"></span>
@@ -18,10 +18,10 @@
   </div>
 
   <!-- Stats Grid -->
-  <div class="grid-stats stagger-children" style="margin-bottom: var(--space-6);">
+  <div class="grid-stats stagger-children" style="margin-bottom:var(--space-6); grid-template-columns:repeat(4,1fr);">
 
-    <div class="stat-card">
-      <div class="stat-icon stat-icon--primary">
+    <div class="stat-card" style="grid-column:span 2; flex-direction:row; align-items:center; gap:var(--space-8); padding:var(--space-6);">
+      <div class="stat-icon stat-icon--primary" style="width:56px; height:56px; flex-shrink:0;">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
           <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
