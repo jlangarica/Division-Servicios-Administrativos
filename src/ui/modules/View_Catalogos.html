@@ -1,25 +1,174 @@
 <div class="catalogos-view">
-  <div class="dashboard-card">
-    <h2 style="color: var(--primary-color);">📊 Administración de Catálogos</h2>
-    <p>Gestión de Proveedores, Partidas Presupuestales y Unidades de Medida.</p>
-    <hr style="border: 0; border-top: 1px solid #eee; margin: 1.5rem 0;">
-    <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
-      <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
-        <thead style="background: #f1f3f4; color: #5f6368;">
+
+  <!-- Header -->
+  <div class="card" style="margin-bottom: var(--space-6);">
+    <div class="card-accent"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--space-4);">
+      <div>
+        <h2 style="font-size:var(--text-xl);font-weight:700;color:var(--color-neutral-900);display:flex;align-items:center;gap:var(--space-3);letter-spacing:-0.3px;">
+          <span class="icon-wrapper">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7"/>
+              <rect x="14" y="3" width="7" height="7"/>
+              <rect x="14" y="14" width="7" height="7"/>
+              <rect x="3" y="14" width="7" height="7"/>
+            </svg>
+          </span>
+          Administración de Catálogos
+        </h2>
+        <p style="font-size:var(--text-sm);color:var(--color-neutral-500);margin-top:var(--space-1);margin-left:44px;">
+          Proveedores, Partidas Presupuestales y Unidades de Medida
+        </p>
+      </div>
+      <button class="btn btn-primary" onclick="Toast.show('Función en desarrollo')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Agregar Registro
+      </button>
+    </div>
+  </div>
+
+  <!-- Catalog Cards -->
+  <div class="grid-cards stagger-children" style="margin-bottom: var(--space-6);">
+
+    <!-- Proveedores -->
+    <div class="card card-interactive" style="cursor:default;">
+      <div class="card-accent"></div>
+      <div style="display:flex;align-items:center;gap:var(--space-4);margin-bottom:var(--space-5);">
+        <div class="stat-icon stat-icon--primary">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        </div>
+        <div>
+          <h3 style="font-size:var(--text-md);font-weight:700;color:var(--color-neutral-900);">Proveedores HCG</h3>
+          <p style="font-size:var(--text-xs);color:var(--color-neutral-500);">Base de datos de proveedores registrados</p>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <span class="badge badge--success"><span class="badge-dot"></span>Sincronizado</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:var(--space-3);">
+          <span style="font-size:var(--text-xs);color:var(--color-neutral-500);">Última actualización: hoy</span>
+          <button class="btn btn-secondary btn-sm">Editar</button>
+        </div>
+      </div>
+      <div class="progress-bar" style="margin-top:var(--space-4);">
+        <div class="progress-bar-fill" style="width:100%;"></div>
+      </div>
+    </div>
+
+    <!-- Partidas Presupuestales -->
+    <div class="card card-interactive" style="cursor:default;">
+      <div class="card-accent"></div>
+      <div style="display:flex;align-items:center;gap:var(--space-4);margin-bottom:var(--space-5);">
+        <div class="stat-icon stat-icon--success">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="1" x2="12" y2="23"/>
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+        </div>
+        <div>
+          <h3 style="font-size:var(--text-md);font-weight:700;color:var(--color-neutral-900);">Partidas Presupuestales</h3>
+          <p style="font-size:var(--text-xs);color:var(--color-neutral-500);">Clasificación de partidas y claves</p>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <span class="badge badge--success"><span class="badge-dot"></span>Sincronizado</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:var(--space-3);">
+          <span style="font-size:var(--text-xs);color:var(--color-neutral-500);">Actualizado: hace 2h</span>
+          <button class="btn btn-secondary btn-sm">Editar</button>
+        </div>
+      </div>
+      <div class="progress-bar" style="margin-top:var(--space-4);">
+        <div class="progress-bar-fill" style="width:95%;"></div>
+      </div>
+    </div>
+
+    <!-- Unidades de Medida -->
+    <div class="card card-interactive" style="cursor:default;">
+      <div class="card-accent"></div>
+      <div style="display:flex;align-items:center;gap:var(--space-4);margin-bottom:var(--space-5);">
+        <div class="stat-icon stat-icon--warning">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+          </svg>
+        </div>
+        <div>
+          <h3 style="font-size:var(--text-md);font-weight:700;color:var(--color-neutral-900);">Unidades de Medida</h3>
+          <p style="font-size:var(--text-xs);color:var(--color-neutral-500);">Catálogo de unidades y conversiones</p>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <span class="badge badge--warning"><span class="badge-dot"></span>Pendiente</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:var(--space-3);">
+          <span style="font-size:var(--text-xs);color:var(--color-neutral-500);">Sincronización requerida</span>
+          <button class="btn btn-primary btn-sm">Sincronizar</button>
+        </div>
+      </div>
+      <div class="progress-bar" style="margin-top:var(--space-4);">
+        <div class="progress-bar-fill" style="width:60%;"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Detail Table -->
+  <div class="card" style="padding:0;overflow:hidden;">
+    <div style="padding:var(--space-5) var(--space-6);border-bottom:1px solid var(--color-neutral-200);display:flex;justify-content:space-between;align-items:center;">
+      <h3 style="font-size:var(--text-md);font-weight:600;color:var(--color-neutral-900);">Detalle de Proveedores</h3>
+      <div style="display:flex;gap:var(--space-2);align-items:center;">
+        <div class="input-group" style="margin-bottom:0;">
+          <input type="text" class="input-field" placeholder="Buscar proveedor..." style="padding:var(--space-2) var(--space-3);font-size:var(--text-xs);width:200px;">
+        </div>
+      </div>
+    </div>
+    <div class="table-container" style="border:none;border-radius:0;">
+      <table class="table">
+        <thead>
           <tr>
-            <th style="padding: 0.75rem; text-align: left;">Catálogo</th>
-            <th style="padding: 0.75rem; text-align: left;">Estado</th>
-            <th style="padding: 0.75rem; text-align: center;">Acción</th>
+            <th>RFC</th>
+            <th>Razón Social</th>
+            <th>Contacto</th>
+            <th>Estatus</th>
+            <th style="text-align:center;">Acción</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td style="padding: 0.75rem; border-top: 1px solid #eee;">Proveedores HCG</td>
-            <td style="padding: 0.75rem; border-top: 1px solid #eee;"><span style="color: green;">● Sincronizado</span></td>
-            <td style="padding: 0.75rem; border-top: 1px solid #eee; text-align: center;"><button class="nav-btn" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">Editar</button></td>
+            <td style="font-family:var(--font-mono);font-size:var(--text-xs);color:var(--color-neutral-600);">MED123456ABC</td>
+            <td style="font-weight:500;">MedSum S.A. de C.V.</td>
+            <td style="color:var(--color-neutral-600);">contacto@medsum.com</td>
+            <td><span class="badge badge--success">Activo</span></td>
+            <td style="text-align:center;"><button class="btn btn-ghost btn-sm">Editar</button></td>
+          </tr>
+          <tr>
+            <td style="font-family:var(--font-mono);font-size:var(--text-xs);color:var(--color-neutral-600);">FAR789012XYZ</td>
+            <td style="font-weight:500;">Farmacéutica del Pacífico</td>
+            <td style="color:var(--color-neutral-600);">ventas@farmpac.com</td>
+            <td><span class="badge badge--success">Activo</span></td>
+            <td style="text-align:center;"><button class="btn btn-ghost btn-sm">Editar</button></td>
+          </tr>
+          <tr>
+            <td style="font-family:var(--font-mono);font-size:var(--text-xs);color:var(--color-neutral-600);">INS345678LMN</td>
+            <td style="font-weight:500;">Insumos Médicos Jalisco</td>
+            <td style="color:var(--color-neutral-600);">info@imjalisco.com</td>
+            <td><span class="badge badge--neutral">Inactivo</span></td>
+            <td style="text-align:center;"><button class="btn btn-ghost btn-sm">Editar</button></td>
           </tr>
         </tbody>
       </table>
     </div>
   </div>
+
 </div>
