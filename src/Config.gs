@@ -16,6 +16,15 @@ const SS_CONFIG_ID = '1BsQLunCnWlkRJZUOgXy3mBuRlQZ8EovR7vfN4E6zTHI';
  */
 const SHEETS = Object.freeze({
   USUARIOS: 'Usuarios',
+  ADQUISICIONES: 'Adquisiciones',
+});
+
+/** ID de la hoja de Adquisiciones */
+const SS_ADQUISICIONES_ID = '1sI_Yy5A7_HqSH1FY4ftg9EMs-jMw7HpQQFV4Ai7X6z8';
+
+/** Configuración de Drive */
+const DRIVE_CONFIG = Object.freeze({
+  EXPEDIENTES_FOLDER_ID: '1o5kw1wyPnOzQp8NypnReBHxzjeJEj34G',
 });
 
 /**
