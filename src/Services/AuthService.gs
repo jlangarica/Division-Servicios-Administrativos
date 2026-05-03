@@ -83,14 +83,20 @@ function lookupUserInSheet(email) {
   const mapCacheKey = 'all_users_map';
   let cachedMap = cache.get(mapCacheKey);
   
-  if (cachedMap === '__FALLBACK__') {
-    cachedMap = PropertiesService.getScriptProperties().getProperty('USERS_MAP_FALLBACK');
+  if (cachedMap === '__CHUNKED__') {
+    const numChunks = parseInt(cache.get(mapCacheKey + '_num_chunks') || '0');
+    let fullSerializedMap = '';
+    for (let i = 0; i < numChunks; i++) {
+      const chunk = cache.get(mapCacheKey + '_part_' + i);
+      if (!chunk) { fullSerializedMap = null; break; }
+      fullSerializedMap += chunk;
+    }
+    cachedMap = fullSerializedMap;
   }
 
   let userMap;
 
   if (cachedMap) {
-    // Map no se puede cachear directamente, se usa Array de pares
     userMap = new Map(JSON.parse(cachedMap)); 
   } else {
     const ss = SpreadsheetApp.openById(SS_CONFIG_ID);
@@ -111,13 +117,21 @@ function lookupUserInSheet(email) {
         });
       }
     }
+    
     const serializedMap = JSON.stringify([...userMap]);
     const mapSize = serializedMap.length;
 
-    if (mapSize > 85000) {
-      // Fallback a PropertiesService si excede el límite de 100KB de CacheService
-      PropertiesService.getScriptProperties().setProperty('USERS_MAP_FALLBACK', serializedMap);
-      cache.put(mapCacheKey, '__FALLBACK__', CACHE_TTL.LOOKUP_DATA);
+    if (mapSize > 90000) {
+      // Chunking en CacheService (límite 100KB por key)
+      const chunkSize = 90000;
+      const numChunks = Math.ceil(serializedMap.length / chunkSize);
+      cache.put(mapCacheKey, '__CHUNKED__', CACHE_TTL.LOOKUP_DATA);
+      cache.put(mapCacheKey + '_num_chunks', String(numChunks), CACHE_TTL.LOOKUP_DATA);
+      
+      for (let i = 0; i < numChunks; i++) {
+        const chunk = serializedMap.substring(i * chunkSize, (i + 1) * chunkSize);
+        cache.put(mapCacheKey + '_part_' + i, chunk, CACHE_TTL.LOOKUP_DATA);
+      }
     } else {
       cache.put(mapCacheKey, serializedMap, CACHE_TTL.LOOKUP_DATA);
     }
