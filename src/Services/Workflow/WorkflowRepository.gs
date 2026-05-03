@@ -1,8 +1,5 @@
 /**
  * Orquestador Transaccional (Repository Pattern)
- * 
- * Maneja el ciclo de vida efímero de las peticiones en GAS,
- * la sincronización concurrente, y la limpieza de caché tras efectos secundarios.
  */
 const WorkflowRepository = {
 
@@ -11,20 +8,20 @@ const WorkflowRepository = {
    * 
    * @param {string} uuid_folio 
    * @param {string} event 
-   * @param {Object} [payload={}] Datos adicionales como justificación de rechazo, usuario, etc.
-   * @returns {Object} Respuesta {success: boolean, error?: string, newState?: string}
+   * @param {Object} [payload={}] 
+   * @returns {Object} Respuesta {success, error, newState}
    */
   dispatchEvent: function(uuid_folio, event, payload = {}) {
     const lock = LockService.getScriptLock();
     
     try {
-      // 1. Adquisición de Lock (Concurrencia Segura)
-      lock.waitLock(10000); // Esperar hasta 10 segundos
+      // 1. Adquisición de Lock
+      lock.waitLock(10000); 
 
-      // 2. Hidratación
+      // 2. Hidratación del contexto actual
       const context = ContextManager.buildContext(uuid_folio);
 
-      // 3. Evaluación Pura (Motor FSM)
+      // 3. Evaluación de Reglas de Negocio (FSM)
       const result = WorkflowEngine.evaluateTransition(
         context.estado_actual, 
         event, 
@@ -36,45 +33,42 @@ const WorkflowRepository = {
         return { success: false, error: result.error };
       }
 
-      // 4. Mutación Atómica - Side Effects
+      // 4. Persistencia Atómica (Side Effects)
       const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
-      const sheetExpedientes = ss.getSheetByName(SHEETS.EXPEDIENTES || SHEETS.BASE_DATOS);
+      const sheetExp = ss.getSheetByName(SHEETS.EXPEDIENTES || SHEETS.BASE_DATOS);
       const sheetFlujo = ss.getSheetByName(SHEETS.FLUJO);
       
-      // Actualizar Base de Datos (Expedientes)
-      if (sheetExpedientes) {
-        // En lugar de buscar headers cada vez, podríamos tenerlo en configuración o caché
-        const lastCol = sheetExpedientes.getLastColumn();
-        const headers = sheetExpedientes.getRange(1, 1, 1, lastCol).getValues()[0];
-        let colEstadoActual = headers.findIndex(h => h.toString().toLowerCase() === 'estado_actual' || h.toString().toLowerCase() === 'estatus') + 1;
+      // Actualizar Estado en Base de Datos
+      if (sheetExp) {
+        const headers = sheetExp.getRange(1, 1, 1, sheetExp.getLastColumn()).getValues()[0].map(h => String(h).toLowerCase());
+        const colEstado = headers.findIndex(h => h.includes('estado') || h.includes('estatus')) + 1;
         
-        if (colEstadoActual > 0) {
-          sheetExpedientes.getRange(context.rowIndex, colEstadoActual).setValue(result.nextState);
+        if (colEstado > 0) {
+          sheetExp.getRange(context.rowIndex, colEstado).setValue(result.nextState);
+        } else {
+          throw new Error('No se encontró la columna de estado en la base de datos.');
         }
       }
 
-      // Registrar en Historial (Flujo)
+      // Registrar Auditoría en Flujo
       if (sheetFlujo) {
-        const timestamp = new Date();
-        const user = payload.userEmail || Session.getActiveUser().getEmail() || 'Desconocido';
-        const logRow1D = [
+        const auditLog = [
           uuid_folio,
-          timestamp,
+          new Date(),
           event,
           context.estado_actual,
           result.nextState,
-          user,
+          payload.userEmail || Session.getActiveUser().getEmail() || 'Sistema',
           payload.reason || ''
         ];
-        sheetFlujo.appendRow(logRow1D);
+        sheetFlujo.appendRow(auditLog);
       }
 
-      // 5. Invalidación de Caché (¡Crítico!)
+      // 5. Invalidation de Caché
       const cache = CacheService.getScriptCache();
-      cache.remove('ctx_' + uuid_folio);
-      cache.remove('db_snapshot_values'); // Invalidar el caché de la hoja base
-
-      // 6. Liberación y volcado a disco
+      cache.remove('ctx_v2_' + uuid_folio);
+      // Opcional: Invalidar resúmenes del dashboard si es necesario
+      
       SpreadsheetApp.flush();
 
       return { 
@@ -83,11 +77,11 @@ const WorkflowRepository = {
       };
 
     } catch (e) {
-      console.error('[WorkflowRepository] Error procesando evento:', e);
-      return { success: false, error: e.message || 'Error transaccional interno.' };
+      console.error('[WorkflowRepository] Error:', e);
+      return { success: false, error: `Error transaccional: ${e.message}` };
     } finally {
-      // 6. Liberación de Lock siempre en el bloque finally
       lock.releaseLock();
     }
   }
 };
+

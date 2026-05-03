@@ -14,26 +14,36 @@ function doGet(e) {
 
 /**
  * Incluye un archivo HTML parcial en el template actual.
- * Patron: server-side include para modularizar vistas.
- * Implementa caché en memoria del script para reducir latencia.
+ * Implementa caché para reducir latencia, configurable vía PropertiesService.
  *
  * @param {string} filename Ruta relativa al archivo sin extensión.
  * @returns {string} Contenido HTML del archivo.
  */
 function include(filename) {
-  // Comentado temporalmente para desarrollo: Evita que el CSS/JS se quede pegado en caché
-  /*
-  const cache = CacheService.getScriptCache();
-  const cacheKey = 'html_partial_' + filename;
-  let content = cache.get(cacheKey);
-
-  if (!content) {
-    content = HtmlService.createHtmlOutputFromFile(filename).getContent();
-    cache.put(cacheKey, content, 21600);
-  }
-  return content;
-  */
+  const props = PropertiesService.getScriptProperties();
+  const isDev = props.getProperty('DEV_MODE') === 'true';
   
-  // Lectura directa (siempre actualizada)
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+  if (!isDev) {
+    const cache = CacheService.getScriptCache();
+    const cacheKey = 'html_v2_' + filename.replace(/\//g, '_');
+    const cached = cache.get(cacheKey);
+    if (cached) return cached;
+    
+    try {
+      const content = HtmlService.createHtmlOutputFromFile(filename).getContent();
+      cache.put(cacheKey, content, 21600); // 6 horas
+      return content;
+    } catch (e) {
+      console.error(`[Main] Error en include(${filename}):`, e.message);
+      return `<!-- Error: ${filename} no encontrado -->`;
+    }
+  }
+
+  // Modo desarrollo: Lectura directa sin caché
+  try {
+    return HtmlService.createHtmlOutputFromFile(filename).getContent();
+  } catch (e) {
+    return `<!-- Error: ${filename} no encontrado -->`;
+  }
 }
+
