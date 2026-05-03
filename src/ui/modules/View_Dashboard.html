@@ -23,17 +23,14 @@
     <div class="stat-card" style="grid-column:span 2; flex-direction:row; align-items:center; gap:var(--space-8); padding:var(--space-6);">
       <div class="stat-icon stat-icon--primary" style="width:56px; height:56px; flex-shrink:0;">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
-          <line x1="12" y1="22.08" x2="12" y2="12"/>
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
         </svg>
       </div>
       <div class="stat-content">
-        <span class="stat-label">Inventario</span>
-        <div class="stat-value" data-counter="1247">0</div>
+        <span class="stat-label">Acervo Total de Expedientes</span>
+        <div class="stat-value" id="stat-total-expedientes" data-counter="0">0</div>
         <span class="stat-change stat-change--up">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>
-          +12%
+          Historial Completo
         </span>
       </div>
     </div>
@@ -44,15 +41,13 @@
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
           <line x1="16" y1="13" x2="8" y2="13"/>
-          <line x1="16" y1="17" x2="8" y2="17"/>
         </svg>
       </div>
       <div class="stat-content">
-        <span class="stat-label">Solicitudes Activas</span>
-        <div class="stat-value" data-counter="38">0</div>
-        <span class="stat-change stat-change--up">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>
-          +5
+        <span class="stat-label">Gestiones Activas</span>
+        <div class="stat-value" id="stat-activas" data-counter="0">0</div>
+        <span class="stat-change stat-change--up" id="stat-change-activas">
+          En Proceso
         </span>
       </div>
     </div>
@@ -65,11 +60,10 @@
         </svg>
       </div>
       <div class="stat-content">
-        <span class="stat-label">Pendientes de Aprobación</span>
-        <div class="stat-value" data-counter="7">0</div>
-        <span class="stat-change stat-change--down">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
-          -3
+        <span class="stat-label">Pendientes Revisión</span>
+        <div class="stat-value" id="stat-pendientes" data-counter="0">0</div>
+        <span class="stat-change stat-change--down" id="stat-change-pendientes">
+          Fases S01-S04
         </span>
       </div>
     </div>
@@ -77,19 +71,18 @@
     <div class="stat-card">
       <div class="stat-icon stat-icon--error">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="1" x2="12" y2="23"/>
-          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          <polyline points="20 6 9 17 4 12"/>
         </svg>
       </div>
       <div class="stat-content">
-        <span class="stat-label">Presupuesto Ejercido</span>
-        <div class="stat-value">$<span data-counter="842500">0</span></div>
+        <span class="stat-label">Folios Finalizados</span>
+        <div class="stat-value" id="stat-finalizados" data-counter="0">0</div>
         <span class="stat-change stat-change--up">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>
-          68%
+          Completados
         </span>
       </div>
     </div>
+
 
   </div>
 
