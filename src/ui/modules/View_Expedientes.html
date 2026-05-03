@@ -1,178 +1,186 @@
-<div class="expedientes-view">
+<style>
+  .library-container {
+    display: flex; flex-direction: column; gap: 32px;
+  }
+  .year-section {
+    position: relative;
+  }
+  .year-header {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--color-neutral-200);
+  }
+  .year-title {
+    font-size: 18px; font-weight: 800; color: var(--color-primary);
+  }
+  .year-count {
+    font-size: 12px; font-weight: 600; color: var(--color-neutral-400);
+    background: var(--color-neutral-100); padding: 2px 8px; border-radius: 12px;
+  }
+  
+  .expediente-row {
+    display: grid; grid-template-columns: 140px 1fr 180px 140px 100px;
+    align-items: center; gap: 16px; padding: 12px 20px;
+    background: var(--color-surface); border-radius: var(--radius-md);
+    margin-bottom: 8px; transition: all 0.2s ease;
+    border: 1px solid transparent; cursor: pointer;
+  }
+  .expediente-row:hover {
+    background: var(--color-surface-dim); border-color: var(--color-primary-light);
+    transform: translateX(4px); box-shadow: var(--shadow-md);
+  }
+  
+  .folio-cell { font-weight: 700; color: var(--color-neutral-900); font-family: var(--font-mono); font-size: 13px; }
+  .servicio-cell { font-size: 13px; color: var(--color-neutral-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fecha-cell { font-size: 12px; color: var(--color-neutral-500); }
+  
+  /* Filter bar styles */
+  .filter-bar {
+    display: flex; gap: 16px; background: var(--color-surface);
+    padding: 16px 24px; border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm); margin-bottom: 32px;
+    align-items: flex-end; border: 1px solid var(--color-neutral-200);
+  }
+</style>
 
-  <!-- Header -->
-  <div class="card" style="margin-bottom: var(--space-6);">
-    <div class="card-accent"></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--space-4);">
-      <div>
-        <h2 style="font-size:var(--text-xl);font-weight:700;color:var(--color-neutral-900);display:flex;align-items:center;gap:var(--space-3);letter-spacing:-0.3px;">
-          <span class="icon-wrapper">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-            </svg>
-          </span>
-          Expedientes Digitales
-        </h2>
-        <p style="font-size:var(--text-sm);color:var(--color-neutral-500);margin-top:var(--space-1);margin-left:44px;">
-          Consulta de Drive y generación de documentos PDF
-        </p>
-      </div>
-      <button class="btn btn-primary" onclick="Toast.show('Generación de documentos en desarrollo')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
-        Generar Documento
-      </button>
-    </div>
+<div class="view-header" style="margin-bottom: 24px;">
+  <div>
+    <h1 style="font-size: 24px; font-weight: 800; color: var(--color-neutral-900);">Biblioteca de Expedientes</h1>
+    <p style="color: var(--color-neutral-500); font-size: 14px;">Acervo histórico digital de todas las gestiones DSA</p>
   </div>
+</div>
 
-  <!-- Stats Row -->
-  <div class="grid-stats stagger-children" style="margin-bottom: var(--space-6);">
-    <div class="stat-card">
-      <div class="stat-icon stat-icon--primary">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
-          <polyline points="13 2 13 9 20 9"/>
-        </svg>
-      </div>
-      <div class="stat-content">
-        <span class="stat-label">Expedientes Totales</span>
-        <div class="stat-value" data-counter="156">0</div>
-      </div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-icon stat-icon--success">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="20 6 9 17 4 12"/>
-        </svg>
-      </div>
-      <div class="stat-content">
-        <span class="stat-label">Anexos Técnicos</span>
-        <div class="stat-value" data-counter="42">0</div>
-      </div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-icon stat-icon--warning">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-          <line x1="3" y1="9" x2="21" y2="9"/>
-          <line x1="9" y1="21" x2="9" y2="9"/>
-        </svg>
-      </div>
-      <div class="stat-content">
-        <span class="stat-label">Cuadros Comparativos</span>
-        <div class="stat-value" data-counter="28">0</div>
-      </div>
-    </div>
+<!-- Barra de Filtros -->
+<div class="filter-bar">
+  <div class="glass-input-group" style="flex: 2; margin-bottom: 0;">
+    <label class="glass-input-label">Buscar por Folio o Servicio</label>
+    <input type="text" id="filter-search" class="glass-input" placeholder="Ej. DSA-2024-001..." oninput="applyFilters()">
   </div>
-
-  <!-- Content Grid -->
-  <div class="grid-2col">
-
-    <!-- Recent Files -->
-    <div class="card">
-      <div class="section-header" style="margin-bottom:var(--space-5);">
-        <h2 style="font-size:var(--text-md);">
-          <span class="icon-wrapper" style="width:28px;height:28px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-            </svg>
-          </span>
-          Archivos Recientes
-        </h2>
-      </div>
-      <div class="stagger-children" style="display:flex;flex-direction:column;gap:var(--space-2);">
-
-        <div class="card card-interactive" style="padding:var(--space-3) var(--space-4);display:flex;align-items:center;gap:var(--space-3);border-radius:var(--radius-md);">
-          <div class="card-accent"></div>
-          <div style="width:36px;height:36px;border-radius:var(--radius-md);background:var(--color-error-light);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-error)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          </div>
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:var(--text-sm);font-weight:500;color:var(--color-neutral-800);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Expediente_2024_001.pdf</div>
-            <div style="font-size:var(--text-2xs);color:var(--color-neutral-500);">2.4 MB · 28 Abr 2024</div>
-          </div>
-        </div>
-
-        <div class="card card-interactive" style="padding:var(--space-3) var(--space-4);display:flex;align-items:center;gap:var(--space-3);border-radius:var(--radius-md);">
-          <div class="card-accent"></div>
-          <div style="width:36px;height:36px;border-radius:var(--radius-md);background:var(--color-primary-light);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          </div>
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:var(--text-sm);font-weight:500;color:var(--color-neutral-800);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Anexo_Tecnico_V3.docx</div>
-            <div style="font-size:var(--text-2xs);color:var(--color-neutral-500);">1.8 MB · 25 Abr 2024</div>
-          </div>
-        </div>
-
-        <div class="card card-interactive" style="padding:var(--space-3) var(--space-4);display:flex;align-items:center;gap:var(--space-3);border-radius:var(--radius-md);">
-          <div class="card-accent"></div>
-          <div style="width:36px;height:36px;border-radius:var(--radius-md);background:var(--color-success-light);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          </div>
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:var(--text-sm);font-weight:500;color:var(--color-neutral-800);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Cuadro_Comparativo_MedSum.xlsx</div>
-            <div style="font-size:var(--text-2xs);color:var(--color-neutral-500);">956 KB · 22 Abr 2024</div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- Drive Integration -->
-    <div class="card" style="display:flex;flex-direction:column;">
-      <div class="section-header" style="margin-bottom:var(--space-5);">
-        <h2 style="font-size:var(--text-md);">
-          <span class="icon-wrapper" style="width:28px;height:28px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-            </svg>
-          </span>
-          Integración con Drive
-        </h2>
-      </div>
-
-      <div style="flex:1;display:flex;flex-direction:column;justify-content:center;">
-        <div class="empty-state" style="border-style:dashed;">
-          <div class="empty-icon">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-              <line x1="12" y1="11" x2="12" y2="17"/>
-              <line x1="9" y1="14" x2="15" y2="14"/>
-            </svg>
-          </div>
-          <h3>Módulo en Desarrollo</h3>
-          <p>La integración con Google Drive para gestión de expedientes se encuentra en etapa de desarrollo.</p>
-          <button class="btn btn-secondary" style="margin-top:var(--space-4);" onclick="Toast.show('Notificación registrada')">
-            Notificarme al estar listo
-          </button>
-        </div>
-      </div>
-    </div>
-
+  <div class="glass-input-group" style="flex: 1; margin-bottom: 0;">
+    <label class="glass-input-label">Filtrar por Año</label>
+    <select id="filter-year" class="glass-input" onchange="applyFilters()">
+      <option value="ALL">Todos los años</option>
+      <option value="2024">2024</option>
+      <option value="2023">2023</option>
+      <option value="2022">2022</option>
+    </select>
   </div>
+  <div class="glass-input-group" style="flex: 1; margin-bottom: 0;">
+    <label class="glass-input-label">Estatus</label>
+    <select id="filter-status" class="glass-input" onchange="applyFilters()">
+      <option value="ALL">Cualquier estado</option>
+      <option value="FINALIZADO">Finalizados</option>
+      <option value="RECHAZADO">Rechazados</option>
+      <option value="PROCESO">En Proceso</option>
+    </select>
+  </div>
+</div>
 
+<div id="library-root" class="library-container">
+  <!-- Spinner inicial -->
+  <div style="display:flex; justify-content:center; padding: 60px;">
+    <div class="spinner-primary"></div>
+  </div>
 </div>
 
 <script>
-(function initExpedientes() {
-  document.querySelectorAll('[data-counter]').forEach(function(el) {
-    var target = parseInt(el.getAttribute('data-counter'), 10);
-    var duration = 1000;
-    var startTime = null;
+  let _allExpedientes = [];
 
-    function animate(ts) {
-      if (!startTime) startTime = ts;
-      var progress = Math.min((ts - startTime) / duration, 1);
-      var eased = 1 - Math.pow(1 - progress, 3);
-      el.textContent = Math.floor(eased * target).toLocaleString('es-MX');
-      if (progress < 1) requestAnimationFrame(animate);
-      else el.textContent = target.toLocaleString('es-MX');
+  /**
+   * Carga inicial de datos desde el servidor.
+   */
+  async function loadLibrary() {
+    const root = document.getElementById('library-root');
+    try {
+      _allExpedientes = await AsyncRunner.run('getExpedientesLibrary');
+      renderLibrary(_allExpedientes);
+    } catch (err) {
+      console.error('[Library] Error:', err);
+      root.innerHTML = '<p class="error">Error al cargar el acervo histórico.</p>';
+    }
+  }
+
+  /**
+   * Renderiza la estructura agrupada por año.
+   */
+  function renderLibrary(data) {
+    const root = document.getElementById('library-root');
+    if (!data || data.length === 0) {
+      root.innerHTML = '<div class="empty-state">No se encontraron expedientes con los criterios seleccionados</div>';
+      return;
     }
 
-    requestAnimationFrame(animate);
-  });
-})();
+    // Agrupar por año
+    const groups = data.reduce((acc, exp) => {
+      const year = exp.anio || 'Desconocido';
+      if (!acc[year]) acc[year] = [];
+      acc[year].push(exp);
+      return acc;
+    }, {});
+
+    const years = Object.keys(groups).sort((a, b) => b - a);
+
+    root.innerHTML = years.map(year => `
+      <div class="year-section">
+        <div class="year-header">
+          <span class="year-title">${year}</span>
+          <span class="year-count">${groups[year].length} expedientes</span>
+        </div>
+        <div class="expedientes-list" data-year="${year}">
+          ${groups[year].map(exp => `
+            <div class="expediente-row lib-card-action" 
+                 data-uuid="${exp.uuid}" 
+                 data-folio="${exp.folio}" 
+                 data-servicio="${exp.servicio}" 
+                 data-estado="${exp.estado}">
+              <div class="folio-cell">${exp.folio}</div>
+              <div class="servicio-cell" title="${exp.servicio}">${exp.servicio}</div>
+              <div class="fecha-cell">${exp.fecha}</div>
+              <div>
+                <span class="status-badge status-${exp.estado}" style="font-size:10px; padding:2px 8px;">
+                  ${exp.estado.replace('S', 'Fase ')}
+                </span>
+              </div>
+              <div style="text-align:right; color:var(--color-primary);">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `).join('');
+
+    // Event Delegation para la biblioteca
+    root.onclick = function(e) {
+      const row = e.target.closest('.lib-card-action');
+      if (!row) return;
+      manageFolio(row.dataset.uuid, row.dataset.folio, row.dataset.servicio, row.dataset.estado);
+    };
+  }
+
+  /**
+   * Aplica los filtros de UI sobre la data en memoria.
+   */
+  function applyFilters() {
+    const search = document.getElementById('filter-search').value.toLowerCase();
+    const year = document.getElementById('filter-year').value;
+    const status = document.getElementById('filter-status').value;
+
+    const filtered = _allExpedientes.filter(exp => {
+      const matchSearch = exp.folio.toLowerCase().includes(search) || 
+                          exp.servicio.toLowerCase().includes(search);
+      const matchYear = year === 'ALL' || exp.anio === year;
+      
+      let matchStatus = true;
+      if (status === 'FINALIZADO') matchStatus = exp.estado === 'FINALIZADO';
+      else if (status === 'RECHAZADO') matchStatus = exp.estado.includes('RECHAZADO');
+      else if (status === 'PROCESO') matchStatus = !exp.estado.includes('FINALIZADO') && !exp.estado.includes('RECHAZADO');
+
+      return matchSearch && matchYear && matchStatus;
+    });
+
+    renderLibrary(filtered);
+  }
+
+  // Iniciar carga
+  setTimeout(loadLibrary, 100);
 </script>
