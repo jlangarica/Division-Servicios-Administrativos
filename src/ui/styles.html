@@ -131,7 +131,6 @@
 html {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   scroll-behavior: smooth;
 }
@@ -1123,22 +1122,22 @@ img, svg { display: block; max-width: 100%; }
   }
 }
 
-/* --- 20. SCROLLBAR --- */
-::-webkit-scrollbar {
+/* --- 20. SCROLLBAR (Standard) --- */
+*::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
-::-webkit-scrollbar-track {
+*::-webkit-scrollbar-track {
   background: transparent;
 }
 
-::-webkit-scrollbar-thumb {
+*::-webkit-scrollbar-thumb {
   background: var(--color-neutral-300);
   border-radius: 3px;
 }
 
-::-webkit-scrollbar-thumb:hover {
+*::-webkit-scrollbar-thumb:hover {
   background: var(--color-neutral-400);
 }
 
@@ -1328,18 +1327,7 @@ a:focus:not(:focus-visible) {
   gap: var(--space-3);
 }
 
-/* --- 27. CSS :has() FORM VALIDATION (Elimina JS Listeners) --- */
-.form-panel .glass-input-group:has(select:invalid, input:placeholder-shown) .step-num {
-  background: var(--color-neutral-200);
-}
-.form-panel .glass-input-group:has(select:valid, input:not(:placeholder-shown)) .step-num {
-  background: var(--color-success);
-  color: white;
-}
-.form-panel .progress-segment[data-field]:has(~ .drop-zone.has-file) {
-  background: var(--color-primary);
-}
-/* --- 15. UI LOCKING & SYNCING --- */
+/* --- 27. UI LOCKING & SYNCING --- */
 body.is-syncing { 
   pointer-events: none !important; 
   opacity: 0.7; 
