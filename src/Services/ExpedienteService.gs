@@ -197,3 +197,51 @@ function getSolicitudesPorUsuario() {
   }
 }
 
+/**
+ * Obtiene el detalle completo de un folio para su gestión.
+ * 
+ * @param {string} uuid
+ * @returns {Object} Detalle del folio.
+ */
+function getFolioDetails(uuid) {
+  try {
+    const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
+    const sheet = ss.getSheetByName(SHEETS.BASE_DATOS);
+    const values = sheet.getDataRange().getValues();
+    
+    const row = values.find(r => r[0] === uuid);
+    if (!row) return null;
+
+    // Asumimos que la URL de Drive está en la última columna (índice 8 según rowData)
+    // Pero en processIntake era row[8]. Vamos a buscar por cabecera si es posible o usar índice.
+    const driveUrl = row[8]; 
+    
+    // Si queremos el PDF específico dentro de la carpeta:
+    const folderId = driveUrl.split('/folders/')[1];
+    const folder = DriveApp.getFolderById(folderId);
+    const files = folder.getFilesByType(MimeType.PDF);
+    let pdfUrl = '';
+    let pdfBase64 = '';
+    
+    if (files.hasNext()) {
+      const file = files.next();
+      pdfUrl = file.getUrl();
+      pdfBase64 = Utilities.base64Encode(file.getBlob().getBytes());
+    }
+
+    return {
+      uuid: row[0],
+      folio: row[2],
+      servicio: row[5],
+      estado: row[10] || 'S01_RECEPCION', // Asumiendo columna 10 para estado
+      pdfBase64: pdfBase64,
+      pdfUrl: pdfUrl
+    };
+
+  } catch (error) {
+    console.error('[ExpedienteService] Error en getFolioDetails:', error);
+    return null;
+  }
+}
+
+
