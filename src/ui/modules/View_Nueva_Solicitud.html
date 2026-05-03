@@ -239,9 +239,11 @@
    * @param {HTMLElement} btn Botón de submit para restaurar.
    * @param {string} originalText HTML original del botón.
    */
-  async function handlePickerResult(result, config, btn, originalText) {
+  async function handlePickerResult(data, config, btn, originalText) {
+    const action = data[google.picker.Response.ACTION];
+
     // Usuario canceló — desbloquear UI
-    if (result.action === google.picker.Action.CANCEL) {
+    if (action === google.picker.Action.CANCEL) {
       btn.disabled = false;
       btn.innerHTML = originalText;
       document.body.classList.remove('is-syncing');
@@ -249,15 +251,27 @@
     }
 
     // No es un PICKED — ignorar otros eventos intermedios
-    if (result.action !== google.picker.Action.PICKED) return;
+    if (action !== google.picker.Action.PICKED) return;
 
-    const doc = result.docs[0];
-    if (!doc) return;
+    const doc = data[google.picker.Response.DOCUMENTS][0];
+    if (!doc) {
+      console.error('[Picker] No se detectaron documentos en la respuesta');
+      return;
+    }
 
-    const fileId = doc.id;
-    const fileName = doc.name;
+    // Extraer ID con fallback
+    const fileId = doc[google.picker.Document.ID] || doc.id;
+    const fileName = doc[google.picker.Document.NAME] || doc.name;
 
-    console.log('[Picker] Archivo seleccionado: %s (%s)', fileName, fileId);
+    console.log('[Picker] Archivo detectado:', fileName, 'ID:', fileId);
+
+    if (!fileId) {
+      Toast.show('⚠️ Error: No se pudo obtener el ID del archivo');
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+      document.body.classList.remove('is-syncing');
+      return;
+    }
 
     // Renderizar preview vía Drive embed
     const iframe = document.getElementById('pdf-iframe');
@@ -270,8 +284,9 @@
     startProcessStepper();
 
     try {
-      // Enviar SOLO el fileId al servidor (No Base64 in RPC)
+      console.log('[OCR] Iniciando llamada RPC con fileId:', fileId);
       const data = await AsyncRunner.run('processOcrEndpoint', fileId);
+
 
       // Manejo de Respuesta
       if (data && !data.error) {
