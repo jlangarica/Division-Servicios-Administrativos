@@ -82,22 +82,46 @@ function processIntake(payload) {
     const blob = Utilities.newBlob(decodedFile, fileData.mimeType, `Oficio_${folioDsa}_${fileData.fileName}`);
     const file = expedienteFolder.createFile(blob);
     
-    // 5. Persistencia en Sheet
+    // 5. Persistencia Atómica en Sheet 'Expedientes'
+    const timestamp = new Date();
+    const sheetExp = ss.getSheetByName(SHEETS.EXPEDIENTES) || ss.getSheetByName(SHEETS.BASE_DATOS);
+    
+    if (!sheetExp) {
+      throw new Error('No se encontró la hoja de destino (Expedientes o Base de Datos).');
+    }
+
     const rowData = [
-      idInterno,                                // A: UUID
-      idFolio,                                  // B: ID Folio
-      folioDsa,                                 // C: Folio DSA
-      formData.tipo_tramite,                    // D: Tipo
-      fechaFormateada,                          // E: Fecha Recepción
-      formData.servicio_solicitante,            // F: Servicio
-      formData.oficio_solicitud.trim(),         // G: Referencia
-      formData.atiende,                         // H: Responsable
-      expedienteFolder.getUrl(),                // I: URL Drive
-      formData.tiene_negativa || false,         // J: ¿Negativa?
-      formData.fecha_negativa || ''             // K: Fecha Negativa
+      idInterno,                            // 1. uuid_folio
+      folioDsa,                             // 2. folio_dsa
+      formData.tipo_tramite,                // 3. tipo_tramite
+      fechaFormateada,                      // 4. fecha_recepcion
+      formData.servicio_solicitante,        // 5. servicio_solicitante
+      formData.oficio_solicitud.trim(),     // 6. oficio_solicitud
+      formData.atiende,                     // 7. atiende (Creador)
+      'S01_RECEPCION',                      // 8. estatus_actual (ESTADO INICIAL FSM)
+      timestamp,                            // 9. fecha_estatus
+      'DSA',                                // 10. asignado_a
+      '',                                   // 11. locked_by
+      expedienteFolder.getId()              // 12. drive_carpeta_id
     ];
     
-    sheet.getRange(lastRow + 1, 1, 1, rowData.length).setValues([rowData]);
+    sheetExp.appendRow(rowData);
+
+    // 6. Registrar Evento Génesis en Flujo
+    const sheetFlujo = ss.getSheetByName(SHEETS.FLUJO);
+    if (sheetFlujo) {
+      const auditLog = [
+        idInterno,               // uuid_folio
+        timestamp,               // timestamp
+        'INIT_PROCESS',          // evento
+        'NONE',                  // estado_origen
+        'S01_RECEPCION',         // estado_destino
+        formData.atiende,        // actor
+        'Recepción de documento físico' // payload/reason
+      ];
+      sheetFlujo.appendRow(auditLog);
+    }
+
     SpreadsheetApp.flush(); 
     
     return {
@@ -122,32 +146,30 @@ function processIntake(payload) {
 function getExpedientesLibrary() {
   try {
     const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
-    const sheet = ss.getSheetByName(SHEETS.BASE_DATOS);
+    const sheet = ss.getSheetByName(SHEETS.EXPEDIENTES) || ss.getSheetByName(SHEETS.BASE_DATOS);
     if (!sheet) return [];
 
     const data = sheet.getDataRange().getValues();
     if (data.length < 2) return [];
 
     const headers = data[0].map(h => String(h).toLowerCase());
+    const find = (name) => headers.findIndex(h => h.includes(name));
+
     const idx = {
-      uuid: headers.indexOf('uuid'),
-      folio: headers.indexOf('folio_dsa'),
-      tipo: headers.indexOf('tipo_tramite'),
-      fecha: headers.indexOf('fecha_recepcion'),
-      servicio: headers.indexOf('servicio_solicitante'),
-      estado: headers.findIndex(h => h.includes('estado') || h.includes('estatus'))
+      uuid: find('uuid'),
+      folio: find('folio_dsa') !== -1 ? find('folio_dsa') : find('folio'),
+      tipo: find('tipo'),
+      fecha: find('fecha_recepcion') !== -1 ? find('fecha_recepcion') : find('fecha'),
+      servicio: find('servicio'),
+      estado: find('estado') !== -1 ? find('estado') : find('estatus')
     };
 
-    // Fallbacks si las cabeceras no coinciden exactamente
-    if (idx.uuid === -1) idx.uuid = 0;
-    if (idx.folio === -1) idx.folio = 2;
-
     return data.slice(1).map(row => {
-      const folio = String(row[idx.folio]);
+      const folio = idx.folio !== -1 ? String(row[idx.folio]) : 'N/A';
       const anioMatch = folio.match(/-(\d{4})-/);
       
       return {
-        uuid: row[idx.uuid],
+        uuid: idx.uuid !== -1 ? row[idx.uuid] : '',
         folio: folio,
         tipo: idx.tipo !== -1 ? row[idx.tipo] : 'N/A',
         fecha: idx.fecha !== -1 ? row[idx.fecha] : '',
@@ -164,7 +186,7 @@ function getExpedientesLibrary() {
 }
 
 /**
- * Obtiene solicitudes filtradas por usuario o rol.
+ * Obtiene solicitudes filtradas por usuario o rol con mapeo dinámico.
  */
 function getSolicitudesPorUsuario() {
   try {
@@ -172,30 +194,32 @@ function getSolicitudesPorUsuario() {
     if (!user) return [];
 
     const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
-    const sheet = ss.getSheetByName(SHEETS.BASE_DATOS);
+    const sheet = ss.getSheetByName(SHEETS.EXPEDIENTES) || ss.getSheetByName(SHEETS.BASE_DATOS);
     if (!sheet) return [];
 
     const data = sheet.getDataRange().getValues();
     if (data.length < 2) return [];
 
     const headers = data[0].map(h => String(h).toLowerCase());
+    const find = (name) => headers.findIndex(h => h.includes(name));
+
     const colIdx = {
-      uuid: 0,
-      folio: 2,
-      servicio: 5,
-      atiende: 7,
-      estado: headers.findIndex(h => h.includes('estado') || h.includes('estatus'))
+      uuid: find('uuid'),
+      folio: find('folio_dsa') !== -1 ? find('folio_dsa') : find('folio'),
+      servicio: find('servicio'),
+      atiende: find('atiende'),
+      estado: find('estado') !== -1 ? find('estado') : find('estatus')
     };
 
     const solicitudes = data.slice(1).map(row => ({
-      uuid: row[colIdx.uuid],
-      folio: row[colIdx.folio],
-      servicio: row[colIdx.servicio],
+      uuid: colIdx.uuid !== -1 ? row[colIdx.uuid] : '',
+      folio: colIdx.folio !== -1 ? row[colIdx.folio] : 'N/A',
+      servicio: colIdx.servicio !== -1 ? row[colIdx.servicio] : '',
       estado: colIdx.estado !== -1 ? row[colIdx.estado] : 'S01_RECEPCION',
-      atiende: row[colIdx.atiende]
+      atiende: colIdx.atiende !== -1 ? row[colIdx.atiende] : ''
     }));
 
-    // Lógica de visibilidad: DSA ve todo lo pendiente, otros ven lo asignado
+    // Lógica de visibilidad
     if (user.role === 'DSA') {
       return solicitudes.filter(s => !['FINALIZADO', 'S99_RECHAZADO'].includes(s.estado));
     }
@@ -207,6 +231,7 @@ function getSolicitudesPorUsuario() {
     return [];
   }
 }
+
 
 /**
  * Obtiene detalle de un folio buscando eficientemente el archivo en Drive.
