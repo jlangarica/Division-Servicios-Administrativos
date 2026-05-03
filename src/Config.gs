@@ -29,7 +29,10 @@ const CONFIG = (function() {
     EXPEDIENTES_FOLDER_ID: props.EXPEDIENTES_FOLDER_ID || '1o5kw1wyPnOzQp8NypnReBHxzjeJEj34G',
 
     /** API Key de Google AI Studio (Gemini). Se lee exclusivamente de PropertiesService. */
-    GEMINI_API_KEY: props.GEMINI_API_KEY || ''
+    GEMINI_API_KEY: props.GEMINI_API_KEY || '',
+
+    /** ID de carpeta temporal en Drive para buffer del Picker OCR (efímera — auto-purge). */
+    OCR_BUFFER_FOLDER_ID: props.OCR_BUFFER_FOLDER_ID || ''
   };
 })();
 
