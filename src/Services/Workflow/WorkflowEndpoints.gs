@@ -45,3 +45,21 @@ function dispatchWorkflowEventEndpoint(uuid_folio, event, payload = {}) {
     return { success: false, error: 'Error del servidor al procesar la transición.' };
   }
 }
+
+
+/**
+ * Endpoint RPC para extracción OCR con Gemini AI.
+ * Expuesto al frontend vía google.script.run (AsyncRunner).
+ *
+ * @param {string} base64Data Archivo PDF codificado en Base64.
+ * @param {string} mimeType Tipo MIME del archivo (ej. 'application/pdf').
+ * @returns {Object} Datos estructurados extraídos, o { success: false, error }.
+ */
+function processOcrEndpoint(base64Data, mimeType) {
+  try {
+    return OcrService.analyzeDocumentWithGemini(base64Data, mimeType);
+  } catch (e) {
+    console.error('[WorkflowEndpoints] OCR Endpoint Error:', e.message);
+    return { success: false, error: e.message };
+  }
+}

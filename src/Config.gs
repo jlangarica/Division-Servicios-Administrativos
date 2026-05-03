@@ -13,6 +13,11 @@
 const CONFIG = (function() {
   const props = PropertiesService.getScriptProperties().getProperties();
   
+  // Validación no-bloqueante de la API Key de Gemini
+  if (!props.GEMINI_API_KEY) {
+    console.warn('[Config] Falta GEMINI_API_KEY en ScriptProperties. El OCR con IA no funcionará.');
+  }
+
   return {
     /** ID del Spreadsheet de configuración */
     SS_CONFIG_ID: props.SS_CONFIG_ID || '1BsQLunCnWlkRJZUOgXy3mBuRlQZ8EovR7vfN4E6zTHI',
@@ -21,7 +26,10 @@ const CONFIG = (function() {
     SS_ADQUISICIONES_ID: props.SS_ADQUISICIONES_ID || '1sI_Yy5A7_HqSH1FY4ftg9EMs-jMw7HpQQFV4Ai7X6z8',
     
     /** ID de la carpeta raíz de expedientes en Drive */
-    EXPEDIENTES_FOLDER_ID: props.EXPEDIENTES_FOLDER_ID || '1o5kw1wyPnOzQp8NypnReBHxzjeJEj34G'
+    EXPEDIENTES_FOLDER_ID: props.EXPEDIENTES_FOLDER_ID || '1o5kw1wyPnOzQp8NypnReBHxzjeJEj34G',
+
+    /** API Key de Google AI Studio (Gemini). Se lee exclusivamente de PropertiesService. */
+    GEMINI_API_KEY: props.GEMINI_API_KEY || ''
   };
 })();
 
