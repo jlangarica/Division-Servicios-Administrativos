@@ -42,16 +42,14 @@ const WorkflowRepository = {
       // Actualizar Base de Datos (Expedientes)
       const sheetExpedientes = ss.getSheetByName(SHEETS.EXPEDIENTES || SHEETS.BASE_DATOS);
       if (sheetExpedientes) {
-        // En un caso real, buscaríamos la columna 'estado_actual'.
-        // Usamos una simplificación aquí: encontrar la columna y actualizar.
         const headers = sheetExpedientes.getRange(1, 1, 1, sheetExpedientes.getLastColumn()).getValues()[0];
         let colEstadoActual = headers.findIndex(h => h.toString().toLowerCase() === 'estado_actual' || h.toString().toLowerCase() === 'estatus') + 1;
         
         if (colEstadoActual > 0) {
-          // Escribir celda de estado, o podríamos sobrescribir toda la fila si se modificaron más datos
-          sheetExpedientes.getRange(context.rowIndex, colEstadoActual).setValue(result.nextState);
+          // Construir array 2D y realizar mutación atómica en bloque
+          const updateData2D = [[result.nextState]];
+          sheetExpedientes.getRange(context.rowIndex, colEstadoActual, 1, 1).setValues(updateData2D);
         } else {
-          // Si no existe, al menos hacemos log o intentamos guardar de otra forma
           console.warn('[WorkflowRepository] No se encontró columna estado_actual en la hoja base.');
         }
       }
@@ -63,8 +61,8 @@ const WorkflowRepository = {
           const timestamp = new Date();
           const user = payload.userEmail || Session.getActiveUser().getEmail() || 'Desconocido';
           
-          // Construir fila 1D para Flujo
-          const logRow = [
+          // Construir fila 1D para Flujo y mutar atómicamente
+          const logRow1D = [
             uuid_folio,
             timestamp,
             event,
@@ -73,7 +71,7 @@ const WorkflowRepository = {
             user,
             payload.reason || ''
           ];
-          sheetFlujo.appendRow(logRow);
+          sheetFlujo.appendRow(logRow1D);
         }
       }
 
