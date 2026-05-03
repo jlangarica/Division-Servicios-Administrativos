@@ -252,9 +252,22 @@ function loadViewContent(viewPath, root) {
 
 function injectView(html, root, viewPath) {
   try {
-    // Eliminada la regex de sanitización insegura. Se confía plenamente en el HTML servido por include()
-    // desde el servidor propio, permitiendo scripts legítimos y evitando evasiones de XSS.
+    // Inyectar HTML base
     root.innerHTML = '<div class="view-transition" style="display:flex; flex-direction:column; flex-grow:1; min-height:0;">' + html + '</div>';
+    
+    // Extraer y re-ejecutar scripts (innerHTML no ejecuta scripts por seguridad)
+    const transitionContainer = root.querySelector('.view-transition');
+    const scripts = transitionContainer.querySelectorAll('script');
+    scripts.forEach(oldScript => {
+      const newScript = document.createElement('script');
+      // Copiar atributos si existen
+      Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+      // Copiar contenido
+      newScript.textContent = oldScript.textContent;
+      // Reemplazar para disparar ejecución
+      oldScript.parentNode.replaceChild(newScript, oldScript);
+    });
+
     AppState.setCurrentView(viewPath);
 
     // Focus management para accesibilidad
