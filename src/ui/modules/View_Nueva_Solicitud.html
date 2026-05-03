@@ -15,15 +15,8 @@
   <div class="card" style="padding: 32px;">
     <form id="form-nueva-solicitud" onsubmit="handleProcessIntake(event)">
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;">
-        <div class="glass-input-group" style="grid-column: span 2;">
-          <label class="glass-input-label">Tipo de Trámite</label>
-          <select id="intake-tipo" class="glass-input" required>
-            <option value="" disabled selected>Seleccione una opción...</option>
-            <option value="LICITACION_PUBLICA">Licitación Pública</option>
-            <option value="ADJUDICACION_DIRECTA">Adjudicación Directa</option>
-            <option value="INVITACION_RESTRINGIDA">Invitación Restringida</option>
-          </select>
-        </div>
+        <!-- Tipo de Trámite: Fijo y Oculto según requerimiento -->
+        <input type="hidden" id="intake-tipo" value="COMPRA POR FONDO">
 
         <div class="glass-input-group">
           <label class="glass-input-label">Fecha de Oficio</label>
@@ -38,6 +31,19 @@
         <div class="glass-input-group" style="grid-column: span 2;">
           <label class="glass-input-label">Servicio Solicitante</label>
           <input type="text" id="intake-servicio" class="glass-input" placeholder="Nombre de la unidad o departamento" required>
+        </div>
+
+        <!-- Módulo de Negativa -->
+        <div class="glass-input-group" style="grid-column: span 1; display:flex; align-items:center; gap:12px; padding-top:10px;">
+          <label class="glass-input-label" style="margin-bottom:0; cursor:pointer;">
+            <input type="checkbox" id="intake-has-negativa" style="width:18px; height:18px; accent-color:var(--color-primary);" onchange="toggleNegativaDate(this.checked)">
+            ¿Contiene Negativa?
+          </label>
+        </div>
+
+        <div id="negativa-date-container" class="glass-input-group" style="grid-column: span 1; display:none;">
+          <label class="glass-input-label">Fecha de Negativa</label>
+          <input type="date" id="intake-fecha-negativa" class="glass-input">
         </div>
       </div>
 
@@ -93,6 +99,14 @@
       document.getElementById('intake-file').files = files;
       updateFileStatus(document.getElementById('intake-file'));
     }
+  }
+
+  function toggleNegativaDate(show) {
+    const container = document.getElementById('negativa-date-container');
+    const input = document.getElementById('intake-fecha-negativa');
+    container.style.display = show ? 'block' : 'none';
+    if (show) input.setAttribute('required', 'required');
+    else input.removeAttribute('required');
   }
 
   function updateFileStatus(input) {

@@ -122,7 +122,9 @@ function processIntake(payload) {
       payload.formData.servicio_solicitante,    // Unidad
       payload.formData.oficio_solicitud,        // Referencia
       payload.formData.atiende,                 // Correo sesión
-      expedienteFolder.getUrl()                 // URL Drive
+      expedienteFolder.getUrl(),                // URL Drive
+      payload.formData.tiene_negativa,          // ¿Negativa?
+      payload.formData.fecha_negativa           // Fecha Negativa
     ];
     
     // 2. Escritura optimizada (appendRow es lento en transacciones grandes)
