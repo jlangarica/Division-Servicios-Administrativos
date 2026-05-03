@@ -209,31 +209,38 @@ function getFolioDetails(uuid) {
     const sheet = ss.getSheetByName(SHEETS.BASE_DATOS);
     const values = sheet.getDataRange().getValues();
     
+    const headers = values[0];
     const row = values.find(r => r[0] === uuid);
     if (!row) return null;
 
-    // Asumimos que la URL de Drive está en la última columna (índice 8 según rowData)
-    // Pero en processIntake era row[8]. Vamos a buscar por cabecera si es posible o usar índice.
-    const driveUrl = row[8]; 
+    const colEstado = headers.findIndex(h => h.toString().toLowerCase() === 'estado_actual' || h.toString().toLowerCase() === 'estatus');
+    const colDrive = headers.findIndex(h => h.toString().toLowerCase().includes('drive') || h.toString().toLowerCase().includes('url'));
+
+    const driveUrl = colDrive !== -1 ? row[colDrive] : row[8]; 
     
     // Si queremos el PDF específico dentro de la carpeta:
-    const folderId = driveUrl.split('/folders/')[1];
-    const folder = DriveApp.getFolderById(folderId);
-    const files = folder.getFilesByType(MimeType.PDF);
-    let pdfUrl = '';
     let pdfBase64 = '';
+    let pdfUrl = '';
     
-    if (files.hasNext()) {
-      const file = files.next();
-      pdfUrl = file.getUrl();
-      pdfBase64 = Utilities.base64Encode(file.getBlob().getBytes());
+    try {
+      const folderId = driveUrl.split('/folders/')[1].split('?')[0];
+      const folder = DriveApp.getFolderById(folderId);
+      const files = folder.getFilesByType(MimeType.PDF);
+      
+      if (files.hasNext()) {
+        const file = files.next();
+        pdfUrl = file.getUrl();
+        pdfBase64 = Utilities.base64Encode(file.getBlob().getBytes());
+      }
+    } catch (e) {
+      console.warn('[GetFolioDetails] No se pudo cargar el PDF de Drive:', e);
     }
 
     return {
       uuid: row[0],
       folio: row[2],
       servicio: row[5],
-      estado: row[10] || 'S01_RECEPCION', // Asumiendo columna 10 para estado
+      estado: colEstado !== -1 ? row[colEstado] : 'S01_RECEPCION',
       pdfBase64: pdfBase64,
       pdfUrl: pdfUrl
     };
