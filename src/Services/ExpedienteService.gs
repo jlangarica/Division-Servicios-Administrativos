@@ -210,7 +210,6 @@ function getFolioDetails(uuid) {
     const values = sheet.getDataRange().getValues();
     
     const headers = values[0];
-    const headers = values[0];
     const row = values.find(r => r[0] === uuid);
     if (!row) return null;
 
