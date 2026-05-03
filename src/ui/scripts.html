@@ -214,15 +214,19 @@ function cacheView(path, html) {
 }
 
 const AsyncRunner = (() => {
-  let _requestId = 0;
   return {
-    run(methodName, payload) {
-      const thisReq = ++_requestId;
+    /**
+     * Ejecuta una función del servidor de forma asíncrona.
+     * @param {string} methodName Nombre de la función en el servidor.
+     * @param {...any} args Argumentos para la función.
+     * @returns {Promise<any>} Promesa con el resultado del servidor.
+     */
+    run(methodName, ...args) {
       return new Promise((resolve, reject) => {
         google.script.run
-          .withSuccessHandler((res) => thisReq === _requestId ? resolve(res) : console.warn(`[AsyncRunner] Ignored stale response: ${methodName}`))
-          .withFailureHandler((err) => thisReq === _requestId ? reject(err) : null)
-          [methodName](payload);
+          .withSuccessHandler((res) => resolve(res))
+          .withFailureHandler((err) => reject(err))
+          [methodName](...args);
       });
     }
   };
