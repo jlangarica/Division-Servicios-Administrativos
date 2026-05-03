@@ -110,6 +110,13 @@ function renderSession(session) {
   nav.classList.remove('nav-hidden');
   nav.classList.add('nav-visible');
 
+  // Show header
+  const appHeader = document.getElementById('app-header');
+  if (appHeader) {
+    appHeader.classList.remove('nav-hidden');
+    appHeader.style.display = 'flex';
+  }
+
   // Update user badge
   const displayName = session.prefix + ' ' + session.name;
   document.getElementById('user-display-name').textContent = displayName;
@@ -123,16 +130,6 @@ function renderSession(session) {
 
   // Load default view
   renderView('ui/modules/View_Dashboard');
-
-  // Add ripple to all nav buttons
-  // document.querySelectorAll('.nav-btn').forEach(function(btn) {
-  //   btn.addEventListener('click', createRipple);
-  // });
-
-  // Scroll shadow on nav
-  window.addEventListener('scroll', function() {
-    nav.classList.toggle('nav-scrolled', window.scrollY > 4);
-  }, { passive: true });
 }
 
 
@@ -149,6 +146,16 @@ function navigateMenu(event, viewPath) {
     event.currentTarget.classList.add('active');
     event.currentTarget.setAttribute('aria-selected', 'true');
   }
+
+  // Update Breadcrumbs
+  const titleMap = {
+    'ui/modules/View_Dashboard': 'Inicio',
+    'ui/modules/View_Solicitudes': 'Solicitudes',
+    'ui/modules/View_Expedientes': 'Expedientes',
+    'ui/modules/View_Catalogos': 'Catálogos'
+  };
+  const breadcrumbs = document.getElementById('app-breadcrumbs');
+  if (breadcrumbs) breadcrumbs.textContent = titleMap[viewPath] || 'Módulo';
 
   renderView(viewPath);
 }
@@ -185,7 +192,7 @@ function renderView(viewPath) {
   if (_viewTransitionLock) return;
   _viewTransitionLock = true;
 
-  const root = document.getElementById('app-root');
+  const root = document.getElementById('app-content') || document.getElementById('app-root');
 
   // Exit animation
   const currentContent = root.querySelector('.view-transition');
@@ -247,7 +254,7 @@ function loadViewContent(viewPath, root) {
 function injectView(html, root, viewPath) {
   try {
     const sanitized = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-    root.innerHTML = '<div class="view-transition">' + sanitized + '</div>';
+    root.innerHTML = '<div class="view-transition" style="display:flex; flex-direction:column; flex-grow:1; min-height:0;">' + sanitized + '</div>';
     AppState.setCurrentView(viewPath);
 
     // Focus management para accesibilidad
@@ -315,7 +322,7 @@ function showModal(title, message, onConfirm) {
 
 /* --- ERROR RENDER --- */
 function renderError() {
-  var root = document.getElementById('app-root');
+  var root = document.getElementById('app-content') || document.getElementById('app-root');
   root.innerHTML =
     '<div class="view-transition">' +
       '<div class="error-view">' +
