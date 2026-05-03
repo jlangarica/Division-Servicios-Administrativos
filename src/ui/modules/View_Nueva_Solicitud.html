@@ -14,7 +14,6 @@
   <!-- PANEL IZQUIERDO: Visor PDF Interactivo -->
   <div class="card" id="pdf-preview-pane" style="flex: 1 1 60%; display:flex; flex-direction:column; padding:0; overflow:hidden; background:var(--color-neutral-100); border: 2px dashed var(--color-neutral-300); position:relative;">
     
-    <!-- Zona de Carga (Visible cuando está vacío) -->
     <div id="pdf-empty-state" class="drop-zone" 
          style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--color-neutral-400); padding: 40px; text-align:center; border:none; background:transparent;"
          onclick="document.getElementById('intake-file').click()" 
@@ -33,9 +32,7 @@
       <input type="file" id="intake-file" style="display:none;" accept=".pdf" onchange="handleFileSelect(event)">
     </div>
 
-    <!-- Visor (Visible cuando hay archivo) -->
     <div id="pdf-viewer-container" style="display:none; flex:1; position:relative;">
-      <!-- Botón flotante para cambiar archivo -->
       <button class="btn btn-secondary" 
               style="position:absolute; top:12px; right:12px; z-index:10; box-shadow:var(--shadow-md); padding:6px 12px; font-size:11px;"
               onclick="document.getElementById('intake-file').click()">
@@ -49,11 +46,40 @@
   <!-- PANEL DERECHO: Captura de Datos -->
   <div style="flex: 0 0 400px; display:flex; flex-direction:column; gap:20px; position:relative;">
 
-    <!-- Overlay de carga IA (oculto por defecto) -->
-    <div id="ocr-loading-overlay" style="display:none; position:absolute; inset:0; z-index:20; background:rgba(255,255,255,0.85); backdrop-filter:blur(4px); border-radius:var(--radius-lg); flex-direction:column; align-items:center; justify-content:center; gap:16px;">
-      <div style="width:48px; height:48px; border:3px solid var(--color-neutral-200); border-top-color:var(--color-primary); border-radius:50%; animation: spin 0.8s linear infinite;"></div>
-      <span style="font-weight:700; font-size:14px; color:var(--color-primary);">🤖 Extrayendo datos con IA...</span>
-      <span style="font-size:11px; color:var(--color-neutral-500); max-width:240px; text-align:center; line-height:1.4;">Gemini está analizando el PDF. Los campos se autocompletarán en unos segundos.</span>
+    <!-- ═══ OVERLAY: Progressive Stage Stepper ═══ -->
+    <div id="ocr-loading-overlay" class="process-overlay">
+      <!-- Conic Progress Ring -->
+      <div class="process-ring" id="process-ring">
+        <svg viewBox="0 0 64 64" width="56" height="56">
+          <circle cx="32" cy="32" r="28" fill="none" stroke="var(--color-neutral-200)" stroke-width="4"/>
+          <circle id="ring-progress" cx="32" cy="32" r="28" fill="none" stroke="var(--color-primary)" stroke-width="4"
+                  stroke-dasharray="175.9" stroke-dashoffset="175.9" stroke-linecap="round"
+                  style="transform:rotate(-90deg); transform-origin:center; transition: stroke-dashoffset 1.2s cubic-bezier(.4,0,.2,1);"/>
+        </svg>
+        <span class="process-ring-pct" id="ring-pct">0%</span>
+      </div>
+
+      <span class="process-title">Procesando documento</span>
+
+      <!-- Vertical Micro-Stepper -->
+      <div class="process-steps" id="process-steps">
+        <div class="step-item" data-step="0">
+          <div class="step-icon"><div class="step-spinner"></div></div>
+          <span>Leyendo documento...</span>
+        </div>
+        <div class="step-item" data-step="1">
+          <div class="step-icon"><div class="step-dot"></div></div>
+          <span>Identificando campos...</span>
+        </div>
+        <div class="step-item" data-step="2">
+          <div class="step-icon"><div class="step-dot"></div></div>
+          <span>Extrayendo datos...</span>
+        </div>
+        <div class="step-item" data-step="3">
+          <div class="step-icon"><div class="step-dot"></div></div>
+          <span>Validando información...</span>
+        </div>
+      </div>
     </div>
 
     <div class="card" style="padding: 24px;">
@@ -61,7 +87,6 @@
         <div style="display:grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 20px;">
           <h3 style="font-size:14px; font-weight:800; color:var(--color-neutral-900); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px;">Metadatos del Oficio</h3>
           
-          <!-- Tipo de Trámite: Fijo y Oculto -->
           <input type="hidden" id="intake-tipo" value="COMPRA POR FONDO">
 
           <div class="glass-input-group">
@@ -101,7 +126,6 @@
       </form>
     </div>
 
-
     <div class="card" style="background:var(--color-primary-light); border:none; padding:16px;">
       <h3 style="font-size:14px; font-weight:700; margin-bottom:8px; color:var(--color-primary);">Requisito Legal</h3>
       <p style="font-size:11px; color:var(--color-neutral-700); line-height:1.5;">
@@ -113,27 +137,180 @@
 </div>
 
 <style>
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* Highlight pulsante para campos autocompletados por IA */
-  .ai-filled {
-    animation: aiPulse 1.5s ease;
-    box-shadow: 0 0 0 2px var(--color-primary-light) !important;
+  /* ═══ Progressive Stage Stepper ═══ */
+  .process-overlay {
+    display:none; position:absolute; inset:0; z-index:20;
+    background:rgba(255,255,255,0.92); backdrop-filter:blur(8px);
+    border-radius:var(--radius-lg);
+    flex-direction:column; align-items:center; justify-content:center; gap:20px;
+    padding: 32px;
   }
-  @keyframes aiPulse {
-    0%   { box-shadow: 0 0 0 0 rgba(var(--color-primary-rgb, 99,102,241), 0.4); }
-    70%  { box-shadow: 0 0 0 6px rgba(var(--color-primary-rgb, 99,102,241), 0); }
-    100% { box-shadow: 0 0 0 0 rgba(var(--color-primary-rgb, 99,102,241), 0); }
+
+  .process-ring { position:relative; display:flex; align-items:center; justify-content:center; }
+  .process-ring-pct {
+    position:absolute; font-size:13px; font-weight:800;
+    color:var(--color-primary); font-variant-numeric:tabular-nums;
+  }
+
+  .process-title {
+    font-weight:800; font-size:15px; color:var(--color-neutral-900);
+    letter-spacing:-0.2px;
+  }
+
+  .process-steps { display:flex; flex-direction:column; gap:10px; width:100%; max-width:240px; }
+
+  .step-item {
+    display:flex; align-items:center; gap:10px;
+    font-size:12px; color:var(--color-neutral-400);
+    transition: color 0.4s ease, transform 0.3s ease;
+  }
+  .step-item.active { color:var(--color-neutral-800); font-weight:600; transform:translateX(4px); }
+  .step-item.done   { color:var(--color-success, #22c55e); }
+
+  .step-icon { width:18px; height:18px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .step-dot  { width:6px; height:6px; border-radius:50%; background:var(--color-neutral-300); transition:background 0.3s; }
+  .step-item.active .step-dot { background:var(--color-primary); }
+
+  .step-spinner {
+    width:14px; height:14px; border:2px solid var(--color-neutral-200);
+    border-top-color:var(--color-primary); border-radius:50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  /* Checkmark SVG injected by JS */
+  .step-check { color:var(--color-success, #22c55e); animation: checkPop 0.35s cubic-bezier(.34,1.56,.64,1); }
+
+  @keyframes spin     { to { transform:rotate(360deg); } }
+  @keyframes checkPop { 0% { transform:scale(0); } 100% { transform:scale(1); } }
+
+  /* ═══ Staggered Cascade Fill ═══ */
+  .field-filled {
+    animation: fieldReveal 0.6s cubic-bezier(.22,1,.36,1) forwards;
+  }
+  @keyframes fieldReveal {
+    0%   { background-color: var(--color-primary-light); box-shadow: 0 0 0 2px var(--color-primary-light); }
+    100% { background-color: transparent; box-shadow: none; }
   }
 </style>
 
 <script>
-  /**
-   * Variable global para almacenar los items extraídos por la IA.
-   * Se podrán consumir en el futuro por el motor FSM o tabla temporal.
-   * @type {Array<Object>|null}
-   */
+  /** Items extraídos del documento. @type {Array<Object>|null} */
   let _ocrExtractedItems = null;
+
+  /** Stepper engine state */
+  let _stepInterval = null;
+
+  const STEP_CHECK_SVG = '<svg class="step-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
+  // ─── Progressive Stage Stepper Controller ───
+
+  /**
+   * Inicia el stepper visual con avance automático temporizado.
+   * Cada paso avanza independientemente del backend; el último paso
+   * queda en "spinning" hasta que el proceso real termine.
+   */
+  function startProcessStepper() {
+    const overlay = document.getElementById('ocr-loading-overlay');
+    const steps = document.querySelectorAll('#process-steps .step-item');
+    const ring = document.getElementById('ring-progress');
+    const pct = document.getElementById('ring-pct');
+    const TOTAL_DASH = 175.9;
+
+    overlay.style.display = 'flex';
+    let current = 0;
+
+    // Activate first step
+    steps[0].classList.add('active');
+
+    // Timing: steps 0-2 advance automatically, step 3 waits for real completion
+    const timings = [2200, 3500, 4000]; // ms between auto-advances
+    let elapsed = 0;
+
+    function advanceStep() {
+      if (current >= steps.length - 1) {
+        clearInterval(_stepInterval);
+        return;
+      }
+      // Mark current as done
+      steps[current].classList.remove('active');
+      steps[current].classList.add('done');
+      steps[current].querySelector('.step-icon').innerHTML = STEP_CHECK_SVG;
+
+      current++;
+      steps[current].classList.add('active');
+      // Replace dot with spinner on current
+      const icon = steps[current].querySelector('.step-icon');
+      icon.innerHTML = '<div class="step-spinner"></div>';
+    }
+
+    // Smooth progress ring animation
+    let progressTarget = 0;
+    const progressInterval = setInterval(() => {
+      // Ease toward target, never exceed 92% until done
+      const max = current < steps.length - 1 ? ((current + 1) / steps.length) * 92 : 92;
+      progressTarget = Math.min(progressTarget + 0.6, max);
+      const offset = TOTAL_DASH - (TOTAL_DASH * progressTarget / 100);
+      ring.style.strokeDashoffset = offset;
+      pct.textContent = Math.round(progressTarget) + '%';
+    }, 80);
+
+    // Stagger auto-advance
+    let stepIdx = 0;
+    _stepInterval = setInterval(() => {
+      elapsed += 600;
+      if (stepIdx < timings.length && elapsed >= timings[stepIdx]) {
+        advanceStep();
+        stepIdx++;
+      }
+    }, 600);
+
+    // Store references for completion
+    overlay._cleanup = { progressInterval, ring, pct, steps, current: () => current, TOTAL_DASH };
+  }
+
+  /**
+   * Marca el stepper como completado (éxito o error).
+   * @param {boolean} success
+   */
+  function completeProcessStepper(success) {
+    clearInterval(_stepInterval);
+    const overlay = document.getElementById('ocr-loading-overlay');
+    const c = overlay._cleanup;
+    if (!c) { overlay.style.display = 'none'; return; }
+
+    clearInterval(c.progressInterval);
+
+    // Complete all remaining steps
+    const steps = c.steps;
+    steps.forEach((s, i) => {
+      s.classList.remove('active');
+      if (success) {
+        s.classList.add('done');
+        s.querySelector('.step-icon').innerHTML = STEP_CHECK_SVG;
+      }
+    });
+
+    // Ring to 100%
+    if (success) {
+      c.ring.style.strokeDashoffset = '0';
+      c.pct.textContent = '100%';
+    }
+
+    // Dismiss after brief celebration
+    setTimeout(() => {
+      overlay.style.display = 'none';
+      // Reset stepper for next use
+      steps.forEach(s => {
+        s.classList.remove('done', 'active');
+        s.querySelector('.step-icon').innerHTML = '<div class="step-dot"></div>';
+      });
+      steps[0].querySelector('.step-icon').innerHTML = '<div class="step-spinner"></div>';
+      c.ring.style.strokeDashoffset = c.TOTAL_DASH;
+      c.pct.textContent = '0%';
+    }, success ? 800 : 300);
+  }
+
+  // ─── Core Handlers ───
 
   function handleDrop(e) {
     e.preventDefault();
@@ -142,7 +319,6 @@
     if (files.length) {
       const input = document.getElementById('intake-file');
       input.files = files;
-      // Disparar el flujo OCR como si el usuario hubiera seleccionado el archivo
       handleFileSelect({ target: input });
     }
   }
@@ -155,10 +331,6 @@
     else input.removeAttribute('required');
   }
 
-  /**
-   * Renderiza el PDF en el visor iframe del panel izquierdo.
-   * @param {HTMLInputElement} input Elemento file input con archivo seleccionado.
-   */
   function updateFileStatus(input) {
     const emptyState = document.getElementById('pdf-empty-state');
     const viewerContainer = document.getElementById('pdf-viewer-container');
@@ -167,11 +339,8 @@
 
     if (input.files && input.files.length) {
       const file = input.files[0];
-
       if (file.type === 'application/pdf') {
-        const blobUrl = URL.createObjectURL(file);
-        iframe.src = blobUrl;
-        
+        iframe.src = URL.createObjectURL(file);
         emptyState.style.display = 'none';
         viewerContainer.style.display = 'flex';
         viewerContainer.style.height = '100%';
@@ -182,45 +351,46 @@
   }
 
   /**
-   * Aplica un valor a un campo del formulario y dispara el evento 'change'
-   * para que la validación de la SPA reconozca el nuevo valor.
-   * Añade clase visual indicando autocompletado por IA.
-   *
-   * @param {string} fieldId ID del elemento HTML.
-   * @param {string} value Valor a asignar.
+   * Aplica un valor con animación de cascada escalonada.
+   * @param {string} fieldId
+   * @param {string} value
+   * @param {number} delay  Delay en ms para efecto cascada.
    */
-  function setFieldWithAI(fieldId, value) {
-    const el = document.getElementById(fieldId);
-    if (!el || !value) return;
-    el.value = value;
-    el.classList.add('ai-filled');
-    el.dispatchEvent(new Event('change', { bubbles: true }));
+  function fillField(fieldId, value, delay) {
+    if (!value) return;
+    setTimeout(() => {
+      const el = document.getElementById(fieldId);
+      if (!el) return;
+      el.value = value;
+      el.classList.add('field-filled');
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      el.addEventListener('animationend', () => el.classList.remove('field-filled'), { once: true });
+    }, delay);
   }
 
   /**
-   * Maneja la selección de archivos e inicia el OCR automático con IA.
-   * Flujo: Archivo → Base64 → Gemini → Autocompletar formulario → Renderizar PDF.
-   *
-   * @param {Event} event Evento 'change' del input file.
+   * Maneja la selección de archivos e inicia el procesamiento automático.
+   * @param {Event} event
    */
   async function handleFileSelect(event) {
     const file = event.target.files[0];
     if (!file || file.type !== 'application/pdf') return;
 
     const btn = document.getElementById('btn-submit-intake');
-    const overlay = document.getElementById('ocr-loading-overlay');
-    const originalText = btn.innerHTML;
+    const originalHTML = btn.innerHTML;
 
-    // 1. Mostrar estado de carga
+    // 1. UI feedback inmediato
     btn.disabled = true;
-    btn.innerHTML = '<div class="btn-spinner" style="display:block;"></div> IA Analizando...';
-    overlay.style.display = 'flex';
+    btn.innerHTML = '<div class="btn-spinner" style="display:block;"></div> Procesando...';
     document.body.classList.add('is-syncing');
 
-    // 2. Renderizar el PDF inmediatamente en el visor (no esperar a la IA)
+    // 2. Renderizar PDF inmediatamente
     updateFileStatus(event.target);
 
-    // 3. Convertir a Base64 y despachar a Gemini
+    // 3. Iniciar stepper visual
+    startProcessStepper();
+
+    // 4. Convertir a Base64 y despachar
     const reader = new FileReader();
     reader.onload = async function(e) {
       const base64Data = e.target.result.split(',')[1];
@@ -229,33 +399,30 @@
         const data = await AsyncRunner.run('processOcrEndpoint', base64Data, file.type);
 
         if (data && !data.error) {
-          // ─── Autocompletar campos del formulario ───
-          setFieldWithAI('intake-oficio', data.numero_oficio_solicitud);
-          setFieldWithAI('intake-servicio', data.servicio_solicitante);
+          completeProcessStepper(true);
 
-          // Priorizar fecha de recepción (sello) sobre elaboración
+          // Staggered cascade fill (150ms entre campos)
+          fillField('intake-oficio', data.numero_oficio_solicitud, 200);
+          fillField('intake-servicio', data.servicio_solicitante, 350);
+
           const fechaTarget = data.fecha_sello_recepcion || data.fecha_elaboracion;
-          if (fechaTarget) {
-            setFieldWithAI('intake-fecha', fechaTarget);
-          }
+          fillField('intake-fecha', fechaTarget, 500);
 
-          // Manejar Negativa
           if (data.es_negativa) {
-            const checkNegativa = document.getElementById('intake-has-negativa');
-            checkNegativa.checked = true;
-            checkNegativa.dispatchEvent(new Event('change', { bubbles: true }));
+            setTimeout(() => {
+              const chk = document.getElementById('intake-has-negativa');
+              chk.checked = true;
+              chk.dispatchEvent(new Event('change', { bubbles: true }));
+            }, 650);
 
-            // Extraer solo la fecha (YYYY-MM-DD) de la fecha/hora de negativa
             const fechaNeg = data.fecha_hora_negativa?.split(' ')[0] || '';
-            if (fechaNeg) {
-              setFieldWithAI('intake-fecha-negativa', fechaNeg);
-            }
+            fillField('intake-fecha-negativa', fechaNeg, 800);
           }
 
-          // Almacenar items extraídos para uso futuro (FSM / tabla)
           _ocrExtractedItems = data.items || [];
 
-          Toast.show('✨ Datos extraídos correctamente por IA (' + (_ocrExtractedItems.length) + ' insumos)');
+          const count = _ocrExtractedItems.length;
+          Toast.show('Documento procesado — ' + count + ' insumo' + (count !== 1 ? 's' : '') + ' encontrado' + (count !== 1 ? 's' : ''));
           console.log('[OCR] Extracción completa:', JSON.stringify(data, null, 2));
 
         } else if (data && data.error) {
@@ -264,11 +431,11 @@
 
       } catch (err) {
         console.error('[OCR] Error:', err);
-        Toast.show('⚠️ IA: No se pudieron extraer datos. Complete manualmente.');
+        completeProcessStepper(false);
+        Toast.show('No se pudieron extraer datos automáticamente. Complete los campos manualmente.');
       } finally {
         btn.disabled = false;
-        btn.innerHTML = originalText;
-        overlay.style.display = 'none';
+        btn.innerHTML = originalHTML;
         document.body.classList.remove('is-syncing');
       }
     };
