@@ -209,7 +209,7 @@
         .addView(docsView)
         .setOAuthToken(config.oauthToken)
         .setDeveloperKey(config.developerKey)
-        .setAppId(config.appId)               // <-- Identificación de App (Doc oficial)
+        .setAppId(config.projectNumber)      // <-- Actualizado a projectNumber
         .setOrigin(google.script.host.origin) // <-- Handshake de seguridad
         .setTitle('Gestión Documental HCG — Seleccionar Oficio')
         .enableFeature(google.picker.Feature.NAV_HIDDEN) // UI más limpia según doc
