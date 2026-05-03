@@ -17,6 +17,8 @@ const SS_CONFIG_ID = '1BsQLunCnWlkRJZUOgXy3mBuRlQZ8EovR7vfN4E6zTHI';
 const SHEETS = Object.freeze({
   USUARIOS: 'Usuarios',
   BASE_DATOS: 'Base de Datos',
+  EXPEDIENTES: 'Expedientes',
+  FLUJO: 'Flujo',
 });
 
 /** ID de la hoja de Adquisiciones/Base de Datos */
