@@ -63,11 +63,13 @@
 |  #  | Característica                     | Descripción                                                                      |
 | :--- | :--------------------------------- | :------------------------------------------------------------------------------- |
 |  1  | **🔐 Autenticación institucional** | Validación contra lista blanca en Google Sheets con CacheService (TTL 30 min).   |
-|  2  | **⚡ SPA con carga dinámica**      | Navegación fluida sin recarga de página mediante renderizado parcial de vistas.   |
-|  3  | **🎨 UI de Alto Nivel**            | Diseño con Glassmorphism, animaciones escalonadas y tipografía premium.          |
+|  2  | **⚡ SPA con carga dinámica**      | Navegación fluida sin recarga mediante renderizado parcial e inyección DOM segura.|
+|  3  | **🎨 UI Enterprise SaaS**          | Estilo editorial, Layout Grid, Sidebar vertical, Glassmorphism y Bento-grid.     |
 |  4  | **📦 Arquitectura Modular**        | Separación estricta entre Servicios (.gs), Controladores y Vistas (.html).       |
 |  5  | **🚀 Optimización Extrema**        | Batch reads, búsquedas en memoria y minimización de llamadas a la API de Google. |
-|  6  | **♿ Accesibilidad Pro**           | Roles ARIA, focus-visible y cumplimiento de contraste WCAG.                      |
+|  6  | **♿ Accesibilidad Pro**           | Estricto cumplimiento WCAG 2.2, roles ARIA y gestión de focus-visible.           |
+|  7  | **🛡️ Seguridad End-to-End**       | Middleware de autorización RPC, protección XSS y bloqueos de Path Traversal.     |
+|  8  | **🗂️ Split View Engine**          | Interfaz de alta productividad combinando visor PDF.js y formularios dinámicos.  |
 
 ---
 
@@ -110,8 +112,12 @@ graph TB
         Data --> Drive
     end
 
-    Router -- "google.script.run" --> Main
+    Router -- "google.script.run (RPC Middleware)" --> Main
 ```
+
+### 🛡️ Seguridad e Inyección DOM Segura
+
+El enrutamiento de la SPA cuenta con un robusto sistema de inyección en el DOM que resuelve restricciones históricas de Apps Script. A su vez, se ha implementado un **Middleware de Autorización RPC** que blinda la comunicación asíncrona entre cliente y servidor, previniendo ejecuciones no autorizadas, incorporando mitigaciones contra XSS y bloqueando intentos de *Path Traversal*.
 
 ---
 
@@ -249,19 +255,25 @@ stateDiagram-v2
     Dashboard --> Solicitudes
     Dashboard --> Expedientes
     Dashboard --> Catalogos
+    Dashboard --> Contratos
+    Dashboard --> Pedidos
     
     Solicitudes --> Dashboard
     Expedientes --> Dashboard
     Catalogos --> Dashboard
+    Contratos --> Dashboard
+    Pedidos --> Dashboard
 ```
 
 ### Detalle de Implementación
 
 | Módulo | Estado | Funcionalidad Clave |
 | :--- | :---: | :--- |
-| **Dashboard** | ✅ | Tarjetas dinámicas, saludo según horario, logs de actividad. |
-| **Solicitudes** | 🚧 | Formulario inteligente, validación de campos, guardado batch. |
-| **Expedientes** | 🚧 | Listado de Drive, previsualización de PDFs, búsqueda por folio. |
+| **Dashboard** | ✅ | Layout Bento-grid editorial, tarjetas dinámicas y logs de actividad. |
+| **Solicitudes** | 🚧 | Formulario inteligente, flujo con vertical stepper, guardado batch. |
+| **Expedientes** | ✅ | Interfaz "Split View" premium, visor PDF.js integrado, carga drag-and-drop y generación atómica de folios. |
+| **Contratos** | ✅ | Listado batch con segmentación en caché, renderizado dinámico e insignias de estado. |
+| **Pedidos** | ✅ | Control de inventario en tiempo real, validación contra existencias reales y alertas visuales. |
 | **Catálogos** | 🚧 | Gestión de proveedores, partidas y unidades de medida. |
 
 ---
@@ -338,9 +350,10 @@ Para evitar el cuello de botella de Google Sheets, se implementó una capa de ab
 ## ◎ Roadmap
 
 - [x] **v1.0.0:** Arquitectura Base, Auth System, Dashboard.
-- [ ] **v1.1.0:** CRUD completo de Requisiciones, Generación de Folios.
-- [ ] **v1.2.0:** Integración con Google Drive API para Expedientes.
-- [ ] **v2.0.0:** Reportes automatizados y Tableros de Control Gerencial.
+- [x] **v1.1.0:** Interfaz ERP SaaS (Sidebar, Bento-grid), Módulo Contratos, Control de Inventarios en Pedidos.
+- [x] **v1.2.0:** Split View de Expedientes, Integración PDF.js, Middleware RPC, DOM-Injection segura y Generación Atómica de Folios.
+- [ ] **v1.3.0:** Consolidación de Requisiciones con Vertical Stepper y flujos complejos.
+- [ ] **v2.0.0:** Reportes automatizados y Tableros de Control Gerencial avanzados.
 
 ---
 
