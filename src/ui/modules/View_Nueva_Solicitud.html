@@ -14,6 +14,7 @@
   <!-- PANEL IZQUIERDO: Visor PDF Interactivo -->
   <div class="card" id="pdf-preview-pane" style="flex: 1 1 60%; display:flex; flex-direction:column; padding:0; overflow:hidden; background:var(--color-neutral-100); border: 2px dashed var(--color-neutral-300); position:relative;">
     
+    <!-- Zona de Carga -->
     <div id="pdf-empty-state" class="drop-zone" 
          style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--color-neutral-400); padding: 40px; text-align:center; border:none; background:transparent;"
          onclick="document.getElementById('intake-file').click()" 
@@ -29,9 +30,11 @@
         <p style="font-size:13px; max-width:280px; margin-top:8px; line-height:1.5;">Arrastre el archivo PDF aquí o haga clic para explorar su equipo.</p>
         <span style="display:inline-block; margin-top:16px; padding:8px 16px; background:var(--color-primary); color:white; border-radius:var(--radius-md); font-weight:600; font-size:13px;">Seleccionar PDF</span>
       </div>
+      <!-- CABLE CONECTADO: handleFileSelect(event) -->
       <input type="file" id="intake-file" style="display:none;" accept=".pdf" onchange="handleFileSelect(event)">
     </div>
 
+    <!-- Visor -->
     <div id="pdf-viewer-container" style="display:none; flex:1; position:relative;">
       <button class="btn btn-secondary" 
               style="position:absolute; top:12px; right:12px; z-index:10; box-shadow:var(--shadow-md); padding:6px 12px; font-size:11px;"
@@ -43,12 +46,11 @@
     </div>
   </div>
 
-  <!-- PANEL DERECHO: Captura de Datos -->
+  <!-- PANEL DERECHO -->
   <div style="flex: 0 0 400px; display:flex; flex-direction:column; gap:20px; position:relative;">
 
-    <!-- ═══ OVERLAY: Progressive Stage Stepper ═══ -->
+    <!-- OVERLAY DE PROCESAMIENTO (UX Stepper) -->
     <div id="ocr-loading-overlay" class="process-overlay">
-      <!-- Conic Progress Ring -->
       <div class="process-ring" id="process-ring">
         <svg viewBox="0 0 64 64" width="56" height="56">
           <circle cx="32" cy="32" r="28" fill="none" stroke="var(--color-neutral-200)" stroke-width="4"/>
@@ -58,10 +60,7 @@
         </svg>
         <span class="process-ring-pct" id="ring-pct">0%</span>
       </div>
-
-      <span class="process-title">Procesando documento</span>
-
-      <!-- Vertical Micro-Stepper -->
+      <span class="process-title">Procesando documento...</span>
       <div class="process-steps" id="process-steps">
         <div class="step-item" data-step="0">
           <div class="step-icon"><div class="step-spinner"></div></div>
@@ -125,19 +124,11 @@
         </div>
       </form>
     </div>
-
-    <div class="card" style="background:var(--color-primary-light); border:none; padding:16px;">
-      <h3 style="font-size:14px; font-weight:700; margin-bottom:8px; color:var(--color-primary);">Requisito Legal</h3>
-      <p style="font-size:11px; color:var(--color-neutral-700); line-height:1.5;">
-        La certificación de negativa es indispensable para legalizar la compra por fondo. Asegúrese de que la fecha coincida con el sello del almacén.
-      </p>
-    </div>
   </div>
 
 </div>
 
 <style>
-  /* ═══ Progressive Stage Stepper ═══ */
   .process-overlay {
     display:none; position:absolute; inset:0; z-index:20;
     background:rgba(255,255,255,0.92); backdrop-filter:blur(8px);
@@ -145,173 +136,31 @@
     flex-direction:column; align-items:center; justify-content:center; gap:20px;
     padding: 32px;
   }
-
   .process-ring { position:relative; display:flex; align-items:center; justify-content:center; }
-  .process-ring-pct {
-    position:absolute; font-size:13px; font-weight:800;
-    color:var(--color-primary); font-variant-numeric:tabular-nums;
-  }
-
-  .process-title {
-    font-weight:800; font-size:15px; color:var(--color-neutral-900);
-    letter-spacing:-0.2px;
-  }
-
+  .process-ring-pct { position:absolute; font-size:13px; font-weight:800; color:var(--color-primary); }
+  .process-title { font-weight:800; font-size:15px; color:var(--color-neutral-900); }
   .process-steps { display:flex; flex-direction:column; gap:10px; width:100%; max-width:240px; }
-
-  .step-item {
-    display:flex; align-items:center; gap:10px;
-    font-size:12px; color:var(--color-neutral-400);
-    transition: color 0.4s ease, transform 0.3s ease;
-  }
+  .step-item { display:flex; align-items:center; gap:10px; font-size:12px; color:var(--color-neutral-400); transition: all 0.4s; }
   .step-item.active { color:var(--color-neutral-800); font-weight:600; transform:translateX(4px); }
   .step-item.done   { color:var(--color-success, #22c55e); }
-
-  .step-icon { width:18px; height:18px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-  .step-dot  { width:6px; height:6px; border-radius:50%; background:var(--color-neutral-300); transition:background 0.3s; }
+  .step-icon { width:18px; height:18px; display:flex; align-items:center; justify-content:center; }
+  .step-dot  { width:6px; height:6px; border-radius:50%; background:var(--color-neutral-300); }
   .step-item.active .step-dot { background:var(--color-primary); }
-
-  .step-spinner {
-    width:14px; height:14px; border:2px solid var(--color-neutral-200);
-    border-top-color:var(--color-primary); border-radius:50%;
-    animation: spin 0.7s linear infinite;
-  }
-
-  /* Checkmark SVG injected by JS */
-  .step-check { color:var(--color-success, #22c55e); animation: checkPop 0.35s cubic-bezier(.34,1.56,.64,1); }
-
-  @keyframes spin     { to { transform:rotate(360deg); } }
-  @keyframes checkPop { 0% { transform:scale(0); } 100% { transform:scale(1); } }
-
-  /* ═══ Staggered Cascade Fill ═══ */
-  .field-filled {
-    animation: fieldReveal 0.6s cubic-bezier(.22,1,.36,1) forwards;
-  }
+  .step-spinner { width:14px; height:14px; border:2px solid var(--color-neutral-200); border-top-color:var(--color-primary); border-radius:50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .field-filled { animation: fieldReveal 0.6s cubic-bezier(.22,1,.36,1) forwards; }
   @keyframes fieldReveal {
-    0%   { background-color: var(--color-primary-light); box-shadow: 0 0 0 2px var(--color-primary-light); }
+    0% { background-color: var(--color-primary-light); box-shadow: 0 0 0 2px var(--color-primary-light); }
     100% { background-color: transparent; box-shadow: none; }
   }
 </style>
 
 <script>
-  /** Items extraídos del documento. @type {Array<Object>|null} */
   let _ocrExtractedItems = null;
-
-  /** Stepper engine state */
   let _stepInterval = null;
+  const STEP_CHECK_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>';
 
-  const STEP_CHECK_SVG = '<svg class="step-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>';
-
-  // ─── Progressive Stage Stepper Controller ───
-
-  /**
-   * Inicia el stepper visual con avance automático temporizado.
-   * Cada paso avanza independientemente del backend; el último paso
-   * queda en "spinning" hasta que el proceso real termine.
-   */
-  function startProcessStepper() {
-    const overlay = document.getElementById('ocr-loading-overlay');
-    const steps = document.querySelectorAll('#process-steps .step-item');
-    const ring = document.getElementById('ring-progress');
-    const pct = document.getElementById('ring-pct');
-    const TOTAL_DASH = 175.9;
-
-    overlay.style.display = 'flex';
-    let current = 0;
-
-    // Activate first step
-    steps[0].classList.add('active');
-
-    // Timing: steps 0-2 advance automatically, step 3 waits for real completion
-    const timings = [2200, 3500, 4000]; // ms between auto-advances
-    let elapsed = 0;
-
-    function advanceStep() {
-      if (current >= steps.length - 1) {
-        clearInterval(_stepInterval);
-        return;
-      }
-      // Mark current as done
-      steps[current].classList.remove('active');
-      steps[current].classList.add('done');
-      steps[current].querySelector('.step-icon').innerHTML = STEP_CHECK_SVG;
-
-      current++;
-      steps[current].classList.add('active');
-      // Replace dot with spinner on current
-      const icon = steps[current].querySelector('.step-icon');
-      icon.innerHTML = '<div class="step-spinner"></div>';
-    }
-
-    // Smooth progress ring animation
-    let progressTarget = 0;
-    const progressInterval = setInterval(() => {
-      // Ease toward target, never exceed 92% until done
-      const max = current < steps.length - 1 ? ((current + 1) / steps.length) * 92 : 92;
-      progressTarget = Math.min(progressTarget + 0.6, max);
-      const offset = TOTAL_DASH - (TOTAL_DASH * progressTarget / 100);
-      ring.style.strokeDashoffset = offset;
-      pct.textContent = Math.round(progressTarget) + '%';
-    }, 80);
-
-    // Stagger auto-advance
-    let stepIdx = 0;
-    _stepInterval = setInterval(() => {
-      elapsed += 600;
-      if (stepIdx < timings.length && elapsed >= timings[stepIdx]) {
-        advanceStep();
-        stepIdx++;
-      }
-    }, 600);
-
-    // Store references for completion
-    overlay._cleanup = { progressInterval, ring, pct, steps, current: () => current, TOTAL_DASH };
-  }
-
-  /**
-   * Marca el stepper como completado (éxito o error).
-   * @param {boolean} success
-   */
-  function completeProcessStepper(success) {
-    clearInterval(_stepInterval);
-    const overlay = document.getElementById('ocr-loading-overlay');
-    const c = overlay._cleanup;
-    if (!c) { overlay.style.display = 'none'; return; }
-
-    clearInterval(c.progressInterval);
-
-    // Complete all remaining steps
-    const steps = c.steps;
-    steps.forEach((s, i) => {
-      s.classList.remove('active');
-      if (success) {
-        s.classList.add('done');
-        s.querySelector('.step-icon').innerHTML = STEP_CHECK_SVG;
-      }
-    });
-
-    // Ring to 100%
-    if (success) {
-      c.ring.style.strokeDashoffset = '0';
-      c.pct.textContent = '100%';
-    }
-
-    // Dismiss after brief celebration
-    setTimeout(() => {
-      overlay.style.display = 'none';
-      // Reset stepper for next use
-      steps.forEach(s => {
-        s.classList.remove('done', 'active');
-        s.querySelector('.step-icon').innerHTML = '<div class="step-dot"></div>';
-      });
-      steps[0].querySelector('.step-icon').innerHTML = '<div class="step-spinner"></div>';
-      c.ring.style.strokeDashoffset = c.TOTAL_DASH;
-      c.pct.textContent = '0%';
-    }, success ? 800 : 300);
-  }
-
-  // ─── Core Handlers ───
-
+  // CABLE CONECTADO: handleDrop
   function handleDrop(e) {
     e.preventDefault();
     e.currentTarget.classList.remove('dragover');
@@ -319,126 +168,131 @@
     if (files.length) {
       const input = document.getElementById('intake-file');
       input.files = files;
+      // Disparamos handleFileSelect manualmente para activar la IA
       handleFileSelect({ target: input });
     }
   }
 
-  function toggleNegativaDate(show) {
-    const container = document.getElementById('negativa-date-container');
-    const input = document.getElementById('intake-fecha-negativa');
-    container.style.display = show ? 'block' : 'none';
-    if (show) input.setAttribute('required', 'required');
-    else input.removeAttribute('required');
-  }
+  function startProcessStepper() {
+    const overlay = document.getElementById('ocr-loading-overlay');
+    const steps = document.querySelectorAll('#process-steps .step-item');
+    const ring = document.getElementById('ring-progress');
+    const pct = document.getElementById('ring-pct');
+    const TOTAL_DASH = 175.9;
+    overlay.style.display = 'flex';
+    let current = 0;
+    steps[0].classList.add('active');
+    
+    let progressTarget = 0;
+    const progressInterval = setInterval(() => {
+      const max = current < steps.length - 1 ? ((current + 1) / steps.length) * 92 : 92;
+      progressTarget = Math.min(progressTarget + 0.6, max);
+      ring.style.strokeDashoffset = TOTAL_DASH - (TOTAL_DASH * progressTarget / 100);
+      pct.textContent = Math.round(progressTarget) + '%';
+    }, 80);
 
-  function updateFileStatus(input) {
-    const emptyState = document.getElementById('pdf-empty-state');
-    const viewerContainer = document.getElementById('pdf-viewer-container');
-    const iframe = document.getElementById('pdf-iframe');
-    const pane = document.getElementById('pdf-preview-pane');
-
-    if (input.files && input.files.length) {
-      const file = input.files[0];
-      if (file.type === 'application/pdf') {
-        iframe.src = URL.createObjectURL(file);
-        emptyState.style.display = 'none';
-        viewerContainer.style.display = 'flex';
-        viewerContainer.style.height = '100%';
-        pane.style.border = 'none';
-        pane.style.background = 'white';
+    const timings = [2000, 3500, 4500];
+    let elapsed = 0;
+    _stepInterval = setInterval(() => {
+      elapsed += 500;
+      if (current < timings.length && elapsed >= timings[current]) {
+        steps[current].classList.remove('active');
+        steps[current].classList.add('done');
+        steps[current].querySelector('.step-icon').innerHTML = STEP_CHECK_SVG;
+        current++;
+        steps[current].classList.add('active');
+        steps[current].querySelector('.step-icon').innerHTML = '<div class="step-spinner"></div>';
       }
+    }, 500);
+
+    overlay._cleanup = { progressInterval, ring, pct, steps, TOTAL_DASH };
+  }
+
+  function completeProcessStepper(success) {
+    clearInterval(_stepInterval);
+    const overlay = document.getElementById('ocr-loading-overlay');
+    const c = overlay._cleanup;
+    if (!c) { overlay.style.display = 'none'; return; }
+    clearInterval(c.progressInterval);
+    if (success) {
+      c.steps.forEach(s => {
+        s.classList.remove('active');
+        s.classList.add('done');
+        s.querySelector('.step-icon').innerHTML = STEP_CHECK_SVG;
+      });
+      c.ring.style.strokeDashoffset = '0';
+      c.pct.textContent = '100%';
     }
+    setTimeout(() => { overlay.style.display = 'none'; }, 800);
   }
 
-  /**
-   * Aplica un valor con animación de cascada escalonada.
-   * @param {string} fieldId
-   * @param {string} value
-   * @param {number} delay  Delay en ms para efecto cascada.
-   */
-  function fillField(fieldId, value, delay) {
-    if (!value) return;
-    setTimeout(() => {
-      const el = document.getElementById(fieldId);
-      if (!el) return;
-      el.value = value;
-      el.classList.add('field-filled');
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-      el.addEventListener('animationend', () => el.classList.remove('field-filled'), { once: true });
-    }, delay);
-  }
-
-  /**
-   * Maneja la selección de archivos e inicia el procesamiento automático.
-   * @param {Event} event
-   */
+  // CABLE CONECTADO: handleFileSelect
   async function handleFileSelect(event) {
     const file = event.target.files[0];
     if (!file || file.type !== 'application/pdf') return;
-
+    
     const btn = document.getElementById('btn-submit-intake');
-    const originalHTML = btn.innerHTML;
-
-    // 1. UI feedback inmediato
+    const originalText = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '<div class="btn-spinner" style="display:block;"></div> Procesando...';
+    btn.innerHTML = '🤖 Procesando...';
     document.body.classList.add('is-syncing');
 
-    // 2. Renderizar PDF inmediatamente
-    updateFileStatus(event.target);
+    // Renderizar PDF
+    const iframe = document.getElementById('pdf-iframe');
+    iframe.src = URL.createObjectURL(file);
+    document.getElementById('pdf-empty-state').style.display = 'none';
+    document.getElementById('pdf-viewer-container').style.display = 'flex';
 
-    // 3. Iniciar stepper visual
     startProcessStepper();
 
-    // 4. Convertir a Base64 y despachar
     const reader = new FileReader();
     reader.onload = async function(e) {
       const base64Data = e.target.result.split(',')[1];
-
       try {
         const data = await AsyncRunner.run('processOcrEndpoint', base64Data, file.type);
-
         if (data && !data.error) {
           completeProcessStepper(true);
+          
+          const fill = (id, val, delay) => setTimeout(() => {
+            const el = document.getElementById(id);
+            if(el && val) { 
+              el.value = val; 
+              el.classList.add('field-filled');
+              el.dispatchEvent(new Event('change', {bubbles:true}));
+            }
+          }, delay);
 
-          // Staggered cascade fill (150ms entre campos)
-          fillField('intake-oficio', data.numero_oficio_solicitud, 200);
-          fillField('intake-servicio', data.servicio_solicitante, 350);
-
-          const fechaTarget = data.fecha_sello_recepcion || data.fecha_elaboracion;
-          fillField('intake-fecha', fechaTarget, 500);
+          fill('intake-oficio', data.numero_oficio_solicitud, 200);
+          fill('intake-servicio', data.servicio_solicitante, 400);
+          fill('intake-fecha', data.fecha_sello_recepcion || data.fecha_elaboracion, 600);
 
           if (data.es_negativa) {
             setTimeout(() => {
               const chk = document.getElementById('intake-has-negativa');
               chk.checked = true;
-              chk.dispatchEvent(new Event('change', { bubbles: true }));
-            }, 650);
-
-            const fechaNeg = data.fecha_hora_negativa?.split(' ')[0] || '';
-            fillField('intake-fecha-negativa', fechaNeg, 800);
+              chk.dispatchEvent(new Event('change', {bubbles:true}));
+              fill('intake-fecha-negativa', data.fecha_hora_negativa?.split(' ')[0], 100);
+            }, 800);
           }
-
           _ocrExtractedItems = data.items || [];
-
-          const count = _ocrExtractedItems.length;
-          Toast.show('Documento procesado — ' + count + ' insumo' + (count !== 1 ? 's' : '') + ' encontrado' + (count !== 1 ? 's' : ''));
-          console.log('[OCR] Extracción completa:', JSON.stringify(data, null, 2));
-
-        } else if (data && data.error) {
-          throw new Error(data.error);
-        }
-
+          Toast.show('✨ Documento procesado correctamente');
+        } else { throw new Error(data?.error || 'Error desconocido'); }
       } catch (err) {
-        console.error('[OCR] Error:', err);
+        console.error('OCR Error:', err);
         completeProcessStepper(false);
-        Toast.show('No se pudieron extraer datos automáticamente. Complete los campos manualmente.');
+        Toast.show('⚠️ No se pudieron extraer los datos automáticamente');
       } finally {
         btn.disabled = false;
-        btn.innerHTML = originalHTML;
+        btn.innerHTML = originalText;
         document.body.classList.remove('is-syncing');
       }
     };
     reader.readAsDataURL(file);
+  }
+
+  function toggleNegativaDate(show) {
+    const container = document.getElementById('negativa-date-container');
+    container.style.display = show ? 'block' : 'none';
+    document.getElementById('intake-fecha-negativa').required = show;
   }
 </script>
