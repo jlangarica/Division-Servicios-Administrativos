@@ -7,12 +7,11 @@
  * y normalización de tablas basada en auditoría documental.
  */
 const OcrService = (() => {
-
-  /** @const {string} Modelo optimizado para extracción de datos (Gemini 3 Flash) */
-  const MODEL_ID = 'gemini-3-flash';
+  /** @const {string} Modelo optimizado para extracción de datos (Gemini 3 Flash Lite) */
+  const MODEL_ID = "gemini-3-flash-lite-preview";
 
   /** @const {string} Base URL del endpoint REST de Gemini */
-  const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+  const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
   // ────────────────────────────────────────────────────────
   //  PROMPT  — Reglas de Oro del Auditor Documental HCG
@@ -56,67 +55,85 @@ toda la información aplicando las siguientes REGLAS DE ORO con precisión quir�
   //  SCHEMA  — Respuesta JSON estructurada
   // ────────────────────────────────────────────────────────
   const RESPONSE_SCHEMA = {
-    type: 'object',
+    type: "object",
     properties: {
       es_negativa: {
-        type: 'boolean',
-        description: 'True si existe la hoja oficial de Negativa de Insumo'
+        type: "boolean",
+        description: "True si existe la hoja oficial de Negativa de Insumo",
       },
       numero_oficio_solicitud: {
-        type: 'string',
-        description: 'Folio complejo de la solicitud (Pág 1)'
+        type: "string",
+        description: "Folio complejo de la solicitud (Pág 1)",
       },
       numero_negativa: {
-        type: 'string',
+        type: "string",
         nullable: true,
-        description: 'Folio corto XX/YYYY de la negativa (Pág 2)'
+        description: "Folio corto XX/YYYY de la negativa (Pág 2)",
       },
       folio_sello_recepcion: {
-        type: 'string',
+        type: "string",
         nullable: true,
-        description: '4 dígitos dentro del sello azul ★'
+        description: "4 dígitos dentro del sello azul ★",
       },
       codigo_uc: {
-        type: 'string',
+        type: "string",
         nullable: true,
-        description: 'Número de 4 dígitos después de U.C.'
+        description: "Número de 4 dígitos después de U.C.",
       },
       servicio_solicitante: {
-        type: 'string',
-        nullable: true
+        type: "string",
+        nullable: true,
       },
       fecha_elaboracion: {
-        type: 'string',
+        type: "string",
         nullable: true,
-        description: 'Fecha redactada en el oficio (YYYY-MM-DD)'
+        description: "Fecha redactada en el oficio (YYYY-MM-DD)",
       },
       fecha_sello_recepcion: {
-        type: 'string',
+        type: "string",
         nullable: true,
-        description: 'Fecha dentro del sello azul (YYYY-MM-DD)'
+        description: "Fecha dentro del sello azul (YYYY-MM-DD)",
       },
       fecha_hora_negativa: {
-        type: 'string',
+        type: "string",
         nullable: true,
-        description: 'Fecha y hora exacta del pie de la negativa'
+        description: "Fecha y hora exacta del pie de la negativa",
       },
       items: {
-        type: 'array',
+        type: "array",
         items: {
-          type: 'object',
+          type: "object",
           properties: {
-            codigo_insumo:       { type: 'string' },
-            partida:             { type: 'string', nullable: true, description: 'Columna PARTIDA (ej. 2161)' },
-            clave_catalogo:      { type: 'string', nullable: true, description: 'Código XXX.XXX.XXXX' },
-            descripcion:         { type: 'string', description: 'Texto completo y unificado del bien' },
-            cantidad_solicitada: { type: 'string', description: 'Cantidad numérica pura (sin unidad)' },
-            unidad_medida:       { type: 'string', nullable: true, description: 'U.M. corregida (ej. LITRO, PIEZA)' }
+            codigo_insumo: { type: "string" },
+            partida: {
+              type: "string",
+              nullable: true,
+              description: "Columna PARTIDA (ej. 2161)",
+            },
+            clave_catalogo: {
+              type: "string",
+              nullable: true,
+              description: "Código XXX.XXX.XXXX",
+            },
+            descripcion: {
+              type: "string",
+              description: "Texto completo y unificado del bien",
+            },
+            cantidad_solicitada: {
+              type: "string",
+              description: "Cantidad numérica pura (sin unidad)",
+            },
+            unidad_medida: {
+              type: "string",
+              nullable: true,
+              description: "U.M. corregida (ej. LITRO, PIEZA)",
+            },
           },
-          required: ['codigo_insumo', 'descripcion', 'cantidad_solicitada']
-        }
-      }
+          required: ["codigo_insumo", "descripcion", "cantidad_solicitada"],
+        },
+      },
     },
-    required: ['es_negativa', 'numero_oficio_solicitud', 'items']
+    required: ["es_negativa", "numero_oficio_solicitud", "items"],
   };
 
   // ────────────────────────────────────────────────────────
@@ -131,16 +148,16 @@ toda la información aplicando las siguientes REGLAS DE ORO con precisión quir�
    * @returns {string} JSON limpio listo para parsear.
    */
   function sanitizeJsonResponse(raw) {
-    if (!raw || typeof raw !== 'string') return '{}';
+    if (!raw || typeof raw !== "string") return "{}";
 
     let cleaned = raw.trim();
 
     // Caso 1: Bloque ```json ... ``` completo
-    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '');
-    cleaned = cleaned.replace(/\s*```$/i, '');
+    cleaned = cleaned.replace(/^```(?:json)?\s*/i, "");
+    cleaned = cleaned.replace(/\s*```$/i, "");
 
     // Caso 2: Caracteres BOM o de control invisibles
-    cleaned = cleaned.replace(/^\uFEFF/, '');
+    cleaned = cleaned.replace(/^\uFEFF/, "");
 
     return cleaned.trim();
   }
@@ -160,37 +177,45 @@ toda la información aplicando las siguientes REGLAS DE ORO con precisión quir�
    */
   function analyzeDocumentWithGemini(base64Data, mimeType) {
     // 1. API Key — lectura segura desde PropertiesService
-    const apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+    const apiKey =
+      PropertiesService.getScriptProperties().getProperty("GEMINI_API_KEY");
     if (!apiKey) {
-      throw new Error('GEMINI_API_KEY no configurada en las propiedades del script.');
+      throw new Error(
+        "GEMINI_API_KEY no configurada en las propiedades del script.",
+      );
     }
 
     const apiUrl = `${API_BASE}/${MODEL_ID}:generateContent?key=${apiKey}`;
 
     // 2. Construcción del Payload
     const payload = {
-      contents: [{
-        parts: [
-          { text: SYSTEM_PROMPT },
-          { inlineData: { mimeType: mimeType, data: base64Data } }
-        ]
-      }],
+      contents: [
+        {
+          parts: [
+            { text: SYSTEM_PROMPT },
+            { inlineData: { mimeType: mimeType, data: base64Data } },
+          ],
+        },
+      ],
       generationConfig: {
-        response_mime_type: 'application/json',
+        response_mime_type: "application/json",
         response_schema: RESPONSE_SCHEMA,
-        temperature: 0.1 // Baja temperatura → máxima precisión
-      }
+        temperature: 0.1, // Baja temperatura → máxima precisión
+      },
     };
 
     // 3. Ejecución HTTP
     const options = {
-      method: 'post',
-      contentType: 'application/json',
+      method: "post",
+      contentType: "application/json",
       payload: JSON.stringify(payload),
-      muteHttpExceptions: true
+      muteHttpExceptions: true,
     };
 
-    console.log('[OcrService] Enviando PDF a Gemini (%s bytes base64)...', base64Data.length);
+    console.log(
+      "[OcrService] Enviando PDF a Gemini (%s bytes base64)...",
+      base64Data.length,
+    );
     const response = UrlFetchApp.fetch(apiUrl, options);
     const responseCode = response.getResponseCode();
     const responseBody = response.getContentText();
@@ -200,11 +225,11 @@ toda la información aplicando las siguientes REGLAS DE ORO con precisión quir�
       let errorMessage = `Error Gemini API (${responseCode})`;
       try {
         const errorObj = JSON.parse(responseBody);
-        errorMessage += ': ' + (errorObj.error?.message || 'Error desconocido');
+        errorMessage += ": " + (errorObj.error?.message || "Error desconocido");
       } catch (_) {
-        errorMessage += ': ' + responseBody.substring(0, 200);
+        errorMessage += ": " + responseBody.substring(0, 200);
       }
-      console.error('[OcrService]', errorMessage);
+      console.error("[OcrService]", errorMessage);
       throw new Error(errorMessage);
     }
 
@@ -213,12 +238,14 @@ toda la información aplicando las siguientes REGLAS DE ORO con precisión quir�
     const candidates = result?.candidates;
 
     if (!candidates || candidates.length === 0) {
-      throw new Error('Gemini no devolvió candidatos. Posible bloqueo de contenido.');
+      throw new Error(
+        "Gemini no devolvió candidatos. Posible bloqueo de contenido.",
+      );
     }
 
     const textResponse = candidates[0]?.content?.parts?.[0]?.text;
     if (!textResponse) {
-      throw new Error('Respuesta de Gemini vacía o sin texto procesable.');
+      throw new Error("Respuesta de Gemini vacía o sin texto procesable.");
     }
 
     // 6. Limpieza de seguridad y parseo
@@ -226,12 +253,20 @@ toda la información aplicando las siguientes REGLAS DE ORO con precisión quir�
 
     try {
       const parsed = JSON.parse(cleanJson);
-      console.log('[OcrService] Extracción exitosa — es_negativa: %s, items: %s',
-        parsed.es_negativa, parsed.items?.length || 0);
+      console.log(
+        "[OcrService] Extracción exitosa — es_negativa: %s, items: %s",
+        parsed.es_negativa,
+        parsed.items?.length || 0,
+      );
       return parsed;
     } catch (parseError) {
-      console.error('[OcrService] JSON inválido después de limpieza:', cleanJson.substring(0, 300));
-      throw new Error('La respuesta de Gemini no es un JSON válido tras sanitización.');
+      console.error(
+        "[OcrService] JSON inválido después de limpieza:",
+        cleanJson.substring(0, 300),
+      );
+      throw new Error(
+        "La respuesta de Gemini no es un JSON válido tras sanitización.",
+      );
     }
   }
 
@@ -239,7 +274,6 @@ toda la información aplicando las siguientes REGLAS DE ORO con precisión quir�
   //  API PÚBLICA
   // ────────────────────────────────────────────────────────
   return {
-    analyzeDocumentWithGemini
+    analyzeDocumentWithGemini,
   };
-
 })();
