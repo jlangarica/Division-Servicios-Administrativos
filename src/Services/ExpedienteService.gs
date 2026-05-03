@@ -151,6 +151,49 @@ function processIntake(payload) {
  * 
  * @returns {Array<Object>} Lista de expedientes para el Kanban.
  */
+/**
+ * Obtiene todos los expedientes registrados para la vista de biblioteca histórica.
+ * @returns {Array<Object>} Lista de expedientes enriquecida con el año.
+ */
+function getExpedientesLibrary() {
+  try {
+    const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
+    const sheet = ss.getSheetByName(SHEETS.BASE_DATOS);
+    if (!sheet) return [];
+
+    const values = sheet.getDataRange().getValues();
+    if (values.length < 2) return [];
+
+    const headers = values[0];
+    const colUUID = 0;
+    const colFolio = 2; 
+    const colTipo = 3;
+    const colFecha = 4;
+    const colServicio = 5;
+    const colEstado = headers.findIndex(h => h.toString().toLowerCase() === 'estado_actual' || h.toString().toLowerCase() === 'estatus');
+
+    return values.slice(1).map(row => {
+      const folio = String(row[colFolio]);
+      const anioMatch = folio.match(/-(\d{4})-/);
+      const anio = anioMatch ? anioMatch[1] : new Date().getFullYear().toString();
+
+      return {
+        uuid: row[colUUID],
+        folio: folio,
+        tipo: row[colTipo],
+        fecha: row[colFecha],
+        servicio: row[colServicio],
+        estado: colEstado !== -1 ? row[colEstado] : 'S01_RECEPCION',
+        anio: anio
+      };
+    }).reverse(); 
+
+  } catch (error) {
+    console.error('[ExpedienteService] Error en getExpedientesLibrary:', error);
+    return [];
+  }
+}
+
 function getSolicitudesPorUsuario() {
   try {
     const user = getActiveUserSession();
