@@ -32,7 +32,10 @@ const CONFIG = (function() {
     GEMINI_API_KEY: props.GEMINI_API_KEY || '',
 
     /** ID de carpeta temporal en Drive para buffer del Picker OCR (efímera — auto-purge). */
-    OCR_BUFFER_FOLDER_ID: props.OCR_BUFFER_FOLDER_ID || ''
+    OCR_BUFFER_FOLDER_ID: props.OCR_BUFFER_FOLDER_ID || '',
+
+    /** API Key de navegador (GCP) para Google Picker. Restringida a *.googleusercontent.com */
+    GOOGLE_DEV_KEY: props.GOOGLE_DEV_KEY || ''
   };
 })();
 

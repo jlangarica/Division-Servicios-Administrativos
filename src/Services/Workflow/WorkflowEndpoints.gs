@@ -53,21 +53,25 @@ function dispatchWorkflowEventEndpoint(uuid_folio, event, payload = {}) {
 
 /**
  * Retorna la configuración necesaria para instanciar el Google Picker
- * en el frontend. No expone API Keys — solo el token OAuth de la sesión
- * activa y el ID de la carpeta buffer.
+ * en el frontend. Expone el token OAuth, la carpeta buffer y la
+ * Developer Key (API Key de navegador de GCP) requerida para el handshake.
  *
- * @returns {{ oauthToken: string, folderId: string }}
+ * @returns {{ oauthToken: string, folderId: string, developerKey: string }}
  */
 function getPickerConfig() {
   try {
     const oauthToken = ScriptApp.getOAuthToken();
     const folderId = CONFIG.OCR_BUFFER_FOLDER_ID;
+    const developerKey = CONFIG.GOOGLE_DEV_KEY;
 
     if (!folderId) {
       throw new Error('OCR_BUFFER_FOLDER_ID no configurado en ScriptProperties.');
     }
+    if (!developerKey) {
+      throw new Error('GOOGLE_DEV_KEY no configurada en ScriptProperties.');
+    }
 
-    return { oauthToken, folderId };
+    return { oauthToken, folderId, developerKey };
   } catch (error) {
     console.error('[WorkflowEndpoints] Error en getPickerConfig:', error);
     throw new Error('No se pudo obtener la configuración del Picker: ' + error.message);

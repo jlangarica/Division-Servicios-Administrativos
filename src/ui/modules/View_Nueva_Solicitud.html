@@ -207,7 +207,8 @@
         .addView(uploadView)
         .addView(docsView)
         .setOAuthToken(config.oauthToken)
-        .setDeveloperKey('')
+        .setDeveloperKey(config.developerKey)
+        .setOrigin(google.script.host.origin)
         .setTitle('Seleccionar Oficio de Solicitud (PDF)')
         .setCallback(function(result) {
           handlePickerResult(result, config, btn, originalText);
