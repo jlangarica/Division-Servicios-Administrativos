@@ -14,31 +14,26 @@
   <!-- PANEL IZQUIERDO: Visor PDF Interactivo -->
   <div class="card" id="pdf-preview-pane" style="flex: 1 1 60%; display:flex; flex-direction:column; padding:0; overflow:hidden; background:var(--color-neutral-100); border: 2px dashed var(--color-neutral-300); position:relative;">
     
-    <!-- Zona de Carga -->
+    <!-- Zona de Carga — Ahora invoca Google Picker -->
     <div id="pdf-empty-state" class="drop-zone" 
          style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--color-neutral-400); padding: 40px; text-align:center; border:none; background:transparent;"
-         onclick="document.getElementById('intake-file').click()" 
-         ondragover="this.classList.add('dragover'); event.preventDefault();" 
-         ondragleave="this.classList.remove('dragover')" 
-         ondrop="handleDrop(event)">
+         onclick="openOcrUploader()">
       
       <div class="drop-zone-content">
         <div style="width:64px; height:64px; border-radius:50%; background:var(--color-primary-light); display:flex; align-items:center; justify-content:center; margin-bottom:20px; color:var(--color-primary);">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
         </div>
         <h3 style="font-weight:800; font-size:18px; color:var(--color-neutral-800); margin-bottom:8px;">Cargar Oficio de Solicitud</h3>
-        <p style="font-size:13px; max-width:280px; margin-top:8px; line-height:1.5;">Arrastre el archivo PDF aquí o haga clic para explorar su equipo.</p>
-        <span style="display:inline-block; margin-top:16px; padding:8px 16px; background:var(--color-primary); color:white; border-radius:var(--radius-md); font-weight:600; font-size:13px;">Seleccionar PDF</span>
+        <p style="font-size:13px; max-width:280px; margin-top:8px; line-height:1.5;">Seleccione el archivo PDF desde su Google Drive institucional.</p>
+        <span style="display:inline-block; margin-top:16px; padding:8px 16px; background:var(--color-primary); color:white; border-radius:var(--radius-md); font-weight:600; font-size:13px;">Abrir Google Drive</span>
       </div>
-      <!-- CABLE CONECTADO: handleFileSelect(event) -->
-      <input type="file" id="intake-file" style="display:none;" accept=".pdf" onchange="handleFileSelect(event)">
     </div>
 
     <!-- Visor -->
     <div id="pdf-viewer-container" style="display:none; flex:1; position:relative;">
       <button class="btn btn-secondary" 
               style="position:absolute; top:12px; right:12px; z-index:10; box-shadow:var(--shadow-md); padding:6px 12px; font-size:11px;"
-              onclick="document.getElementById('intake-file').click()">
+              onclick="openOcrUploader()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
         Cambiar PDF
       </button>
@@ -64,11 +59,11 @@
       <div class="process-steps" id="process-steps">
         <div class="step-item" data-step="0">
           <div class="step-icon"><div class="step-spinner"></div></div>
-          <span>Leyendo documento...</span>
+          <span>Subiendo a Drive...</span>
         </div>
         <div class="step-item" data-step="1">
           <div class="step-icon"><div class="step-dot"></div></div>
-          <span>Identificando campos...</span>
+          <span>Analizando con Gemini AI...</span>
         </div>
         <div class="step-item" data-step="2">
           <div class="step-icon"><div class="step-dot"></div></div>
@@ -158,20 +153,162 @@
 <script>
   let _ocrExtractedItems = null;
   let _stepInterval = null;
+  let _pickerApiLoaded = false;
   const STEP_CHECK_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>';
 
-  // CABLE CONECTADO: handleDrop
-  function handleDrop(e) {
-    e.preventDefault();
-    e.currentTarget.classList.remove('dragover');
-    const files = e.dataTransfer.files;
-    if (files.length) {
-      const input = document.getElementById('intake-file');
-      input.files = files;
-      // Disparamos handleFileSelect manualmente para activar la IA
-      handleFileSelect({ target: input });
+  // ────────────────────────────────────────────────────────
+  //  GOOGLE PICKER — Inicialización y Apertura
+  // ────────────────────────────────────────────────────────
+
+  /**
+   * Carga la API del Picker (una sola vez) y abre el selector de archivos.
+   * El flujo completo:
+   *   1. body.is-syncing se activa ANTES de abrir el Picker
+   *   2. Picker se muestra al usuario
+   *   3. Si PICKED → startProcessStepper + enviar fileId al servidor
+   *   4. Si CANCEL → desbloquear UI
+   */
+  async function openOcrUploader() {
+    const btn = document.getElementById('btn-submit-intake');
+    const originalText = btn.innerHTML;
+
+    // UI Lock — se activa ANTES de abrir el Picker
+    btn.disabled = true;
+    btn.innerHTML = '🤖 Preparando...';
+    document.body.classList.add('is-syncing');
+
+    try {
+      // 1. Obtener configuración segura del servidor (token + folderId)
+      const config = await AsyncRunner.run('getPickerConfig');
+
+      // 2. Cargar la librería del Picker (lazy, una sola vez)
+      if (!_pickerApiLoaded) {
+        await new Promise((resolve, reject) => {
+          gapi.load('picker', { callback: resolve, onerror: reject });
+        });
+        _pickerApiLoaded = true;
+      }
+
+      // 3. Construir e invocar el Picker
+      const uploadView = new google.picker.DocsUploadView()
+        .setParent(config.folderId);
+
+      const docsView = new google.picker.DocsView(google.picker.ViewId.DOCS)
+        .setMimeTypes('application/pdf')
+        .setSelectFolderEnabled(false);
+
+      const picker = new google.picker.PickerBuilder()
+        .addView(uploadView)
+        .addView(docsView)
+        .setOAuthToken(config.oauthToken)
+        .setOrigin(google.script.host.origin)
+        .setTitle('Seleccionar Oficio de Solicitud (PDF)')
+        .setCallback(function(result) {
+          handlePickerResult(result, config, btn, originalText);
+        })
+        .setSize(900, 550)
+        .build();
+
+      picker.setVisible(true);
+
+    } catch (err) {
+      console.error('[Picker] Error al inicializar:', err);
+      Toast.show('⚠️ No se pudo abrir el selector de archivos');
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+      document.body.classList.remove('is-syncing');
     }
   }
+
+  /**
+   * Callback del Google Picker.
+   * Maneja las acciones PICKED (archivo seleccionado) y CANCEL.
+   *
+   * @param {Object} result Resultado del Picker.
+   * @param {Object} config Configuración { oauthToken, folderId }.
+   * @param {HTMLElement} btn Botón de submit para restaurar.
+   * @param {string} originalText HTML original del botón.
+   */
+  async function handlePickerResult(result, config, btn, originalText) {
+    // Usuario canceló — desbloquear UI
+    if (result.action === google.picker.Action.CANCEL) {
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+      document.body.classList.remove('is-syncing');
+      return;
+    }
+
+    // No es un PICKED — ignorar otros eventos intermedios
+    if (result.action !== google.picker.Action.PICKED) return;
+
+    const doc = result.docs[0];
+    if (!doc) return;
+
+    const fileId = doc.id;
+    const fileName = doc.name;
+
+    console.log('[Picker] Archivo seleccionado: %s (%s)', fileName, fileId);
+
+    // Renderizar preview vía Drive embed
+    const iframe = document.getElementById('pdf-iframe');
+    iframe.src = 'https://drive.google.com/file/d/' + fileId + '/preview';
+    document.getElementById('pdf-empty-state').style.display = 'none';
+    document.getElementById('pdf-viewer-container').style.display = 'flex';
+
+    // Sincronizar stepper con la selección real
+    btn.innerHTML = '🤖 Procesando...';
+    startProcessStepper();
+
+    try {
+      // Enviar SOLO el fileId al servidor (No Base64 in RPC)
+      const data = await AsyncRunner.run('processOcrEndpoint', fileId);
+
+      // Manejo de Respuesta
+      if (data && !data.error) {
+        completeProcessStepper(true);
+
+        const fill = (id, val, delay) => setTimeout(() => {
+          const el = document.getElementById(id);
+          if (el && val) {
+            el.value = val;
+            el.classList.add('field-filled');
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }, delay);
+
+        fill('intake-oficio', data.numero_oficio_solicitud, 200);
+        fill('intake-servicio', data.servicio_solicitante, 400);
+        fill('intake-fecha', data.fecha_sello_recepcion || data.fecha_elaboracion, 600);
+
+        if (data.es_negativa) {
+          setTimeout(() => {
+            const chk = document.getElementById('intake-has-negativa');
+            chk.checked = true;
+            chk.dispatchEvent(new Event('change', { bubbles: true }));
+            fill('intake-fecha-negativa', data.fecha_hora_negativa?.split(' ')[0], 100);
+          }, 800);
+        }
+
+        _ocrExtractedItems = data.items || [];
+        Toast.show('✨ Documento procesado correctamente');
+      } else {
+        throw new Error(data?.error || 'Error desconocido del servidor');
+      }
+    } catch (err) {
+      console.error('OCR Error:', err);
+      completeProcessStepper(false);
+      Toast.show('⚠️ Error en la IA: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+      document.body.classList.remove('is-syncing');
+    }
+  }
+
+
+  // ────────────────────────────────────────────────────────
+  //  STEPPER — Animación de Progreso
+  // ────────────────────────────────────────────────────────
 
   function startProcessStepper() {
     const overlay = document.getElementById('ocr-loading-overlay');
@@ -226,79 +363,10 @@
     setTimeout(() => { overlay.style.display = 'none'; }, 800);
   }
 
-  // CABLE CONECTADO: handleFileSelect
-  async function handleFileSelect(event) {
-    const file = event.target.files[0];
-    if (!file || file.type !== 'application/pdf') return;
-    
-    const btn = document.getElementById('btn-submit-intake');
-    const originalText = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '🤖 Procesando...';
-    document.body.classList.add('is-syncing');
 
-    // Renderizar PDF
-    const iframe = document.getElementById('pdf-iframe');
-    iframe.src = URL.createObjectURL(file);
-    document.getElementById('pdf-empty-state').style.display = 'none';
-    document.getElementById('pdf-viewer-container').style.display = 'flex';
-
-    startProcessStepper();
-
-    try {
-      // 1. Esperar lectura completa del Base64 mediante Promesa
-      const base64Data = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = e => resolve(e.target.result.split(',')[1]);
-        reader.onerror = err => reject(err);
-        reader.readAsDataURL(file);
-      });
-
-      if (!base64Data) throw new Error("Fallo al codificar el archivo a Base64");
-
-      // 2. Llamada al Servidor (datos garantizados)
-      const data = await AsyncRunner.run('processOcrEndpoint', base64Data, file.type);
-
-      // 3. Manejo de Respuesta
-      if (data && !data.error) {
-        completeProcessStepper(true);
-
-        const fill = (id, val, delay) => setTimeout(() => {
-          const el = document.getElementById(id);
-          if(el && val) { 
-            el.value = val; 
-            el.classList.add('field-filled');
-            el.dispatchEvent(new Event('change', {bubbles:true}));
-          }
-        }, delay);
-
-        fill('intake-oficio', data.numero_oficio_solicitud, 200);
-        fill('intake-servicio', data.servicio_solicitante, 400);
-        fill('intake-fecha', data.fecha_sello_recepcion || data.fecha_elaboracion, 600);
-
-        if (data.es_negativa) {
-          setTimeout(() => {
-            const chk = document.getElementById('intake-has-negativa');
-            chk.checked = true;
-            chk.dispatchEvent(new Event('change', {bubbles:true}));
-            fill('intake-fecha-negativa', data.fecha_hora_negativa?.split(' ')[0], 100);
-          }, 800);
-        }
-        _ocrExtractedItems = data.items || [];
-        Toast.show('✨ Documento procesado correctamente');
-      } else {
-        throw new Error(data?.error || 'Error desconocido del servidor');
-      }
-    } catch (err) {
-      console.error('OCR Error:', err);
-      completeProcessStepper(false);
-      Toast.show('⚠️ Error en la IA: ' + err.message);
-    } finally {
-      btn.disabled = false;
-      btn.innerHTML = originalText;
-      document.body.classList.remove('is-syncing');
-    }
-  }
+  // ────────────────────────────────────────────────────────
+  //  UTILIDADES
+  // ────────────────────────────────────────────────────────
 
   function toggleNegativaDate(show) {
     const container = document.getElementById('negativa-date-container');
