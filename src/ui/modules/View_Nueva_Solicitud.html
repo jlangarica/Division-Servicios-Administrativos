@@ -245,49 +245,59 @@
 
     startProcessStepper();
 
-    const reader = new FileReader();
-    reader.onload = async function(e) {
-      const base64Data = e.target.result.split(',')[1];
-      try {
-        const data = await AsyncRunner.run('processOcrEndpoint', base64Data, file.type);
-        if (data && !data.error) {
-          completeProcessStepper(true);
-          
-          const fill = (id, val, delay) => setTimeout(() => {
-            const el = document.getElementById(id);
-            if(el && val) { 
-              el.value = val; 
-              el.classList.add('field-filled');
-              el.dispatchEvent(new Event('change', {bubbles:true}));
-            }
-          }, delay);
+    try {
+      // 1. Esperar lectura completa del Base64 mediante Promesa
+      const base64Data = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result.split(',')[1]);
+        reader.onerror = err => reject(err);
+        reader.readAsDataURL(file);
+      });
 
-          fill('intake-oficio', data.numero_oficio_solicitud, 200);
-          fill('intake-servicio', data.servicio_solicitante, 400);
-          fill('intake-fecha', data.fecha_sello_recepcion || data.fecha_elaboracion, 600);
+      if (!base64Data) throw new Error("Fallo al codificar el archivo a Base64");
 
-          if (data.es_negativa) {
-            setTimeout(() => {
-              const chk = document.getElementById('intake-has-negativa');
-              chk.checked = true;
-              chk.dispatchEvent(new Event('change', {bubbles:true}));
-              fill('intake-fecha-negativa', data.fecha_hora_negativa?.split(' ')[0], 100);
-            }, 800);
+      // 2. Llamada al Servidor (datos garantizados)
+      const data = await AsyncRunner.run('processOcrEndpoint', base64Data, file.type);
+
+      // 3. Manejo de Respuesta
+      if (data && !data.error) {
+        completeProcessStepper(true);
+
+        const fill = (id, val, delay) => setTimeout(() => {
+          const el = document.getElementById(id);
+          if(el && val) { 
+            el.value = val; 
+            el.classList.add('field-filled');
+            el.dispatchEvent(new Event('change', {bubbles:true}));
           }
-          _ocrExtractedItems = data.items || [];
-          Toast.show('✨ Documento procesado correctamente');
-        } else { throw new Error(data?.error || 'Error desconocido'); }
-      } catch (err) {
-        console.error('OCR Error:', err);
-        completeProcessStepper(false);
-        Toast.show('⚠️ No se pudieron extraer los datos automáticamente');
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-        document.body.classList.remove('is-syncing');
+        }, delay);
+
+        fill('intake-oficio', data.numero_oficio_solicitud, 200);
+        fill('intake-servicio', data.servicio_solicitante, 400);
+        fill('intake-fecha', data.fecha_sello_recepcion || data.fecha_elaboracion, 600);
+
+        if (data.es_negativa) {
+          setTimeout(() => {
+            const chk = document.getElementById('intake-has-negativa');
+            chk.checked = true;
+            chk.dispatchEvent(new Event('change', {bubbles:true}));
+            fill('intake-fecha-negativa', data.fecha_hora_negativa?.split(' ')[0], 100);
+          }, 800);
+        }
+        _ocrExtractedItems = data.items || [];
+        Toast.show('✨ Documento procesado correctamente');
+      } else {
+        throw new Error(data?.error || 'Error desconocido del servidor');
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('OCR Error:', err);
+      completeProcessStepper(false);
+      Toast.show('⚠️ Error en la IA: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+      document.body.classList.remove('is-syncing');
+    }
   }
 
   function toggleNegativaDate(show) {

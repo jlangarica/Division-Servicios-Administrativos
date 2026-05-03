@@ -176,6 +176,13 @@ toda la información aplicando las siguientes REGLAS DE ORO con precisión quir�
    * @throws {Error} Si la API Key no está configurada o la API falla.
    */
   function analyzeDocumentWithGemini(base64Data, mimeType) {
+    // 0. Validación de carga útil — Fail-Fast antes de cualquier trabajo
+    if (!base64Data || typeof base64Data !== "string" || base64Data.length < 100) {
+      throw new Error(
+        "El servidor recibió un archivo corrupto o vacío (base64Data is missing).",
+      );
+    }
+
     // 1. API Key — lectura segura desde PropertiesService
     const apiKey =
       PropertiesService.getScriptProperties().getProperty("GEMINI_API_KEY");
@@ -211,12 +218,6 @@ toda la información aplicando las siguientes REGLAS DE ORO con precisión quir�
       payload: JSON.stringify(payload),
       muteHttpExceptions: true,
     };
-
-    if (!base64Data || typeof base64Data !== "string") {
-      throw new Error(
-        "El servidor recibió un archivo corrupto o vacío (base64Data is missing).",
-      );
-    }
 
     const dataSize = base64Data.length;
     console.log(
