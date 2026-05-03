@@ -1,0 +1,20 @@
+<form id="active-step-form">
+  <div class="glass-input-group">
+    <label class="glass-input-label">Proveedor Seleccionado</label>
+    <input type="text" name="nombre_proveedor" class="glass-input" placeholder="Nombre del proveedor" required>
+  </div>
+  
+  <div class="glass-input-group">
+    <label class="glass-input-label">Importe de Cotización (S/IVA)</label>
+    <input type="number" name="importe_cotizacion" class="glass-input" step="0.01" required>
+  </div>
+
+  <div class="glass-input-group">
+    <label class="glass-input-label">Archivo de Cotización (.pdf)</label>
+    <input type="file" name="archivo_cotizacion" class="glass-input" accept=".pdf" required>
+  </div>
+
+  <div style="padding:12px; border-radius:8px; background:rgba(233, 69, 96, 0.05); font-size:11px; color:var(--color-secondary); font-weight:600;">
+    Recuerde que el motor FSM requiere al menos 3 cotizaciones recibidas para avanzar al cuadro comparativo.
+  </div>
+</form>

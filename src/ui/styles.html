@@ -1339,4 +1339,21 @@ a:focus:not(:focus-visible) {
 .form-panel .progress-segment[data-field]:has(~ .drop-zone.has-file) {
   background: var(--color-primary);
 }
+/* --- 15. UI LOCKING & SYNCING --- */
+body.is-syncing { 
+  pointer-events: none !important; 
+  opacity: 0.7; 
+  cursor: wait !important; 
+}
+
+body.is-syncing .btn-primary,
+body.is-syncing .btn-secondary,
+body.is-syncing .card-interactive { 
+  filter: grayscale(0.5); 
+  transition: filter var(--duration-normal);
+}
+
+body.is-syncing .loader-ring {
+  display: block;
+}
 </style>

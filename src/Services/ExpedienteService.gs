@@ -210,6 +210,7 @@ function getFolioDetails(uuid) {
     const values = sheet.getDataRange().getValues();
     
     const headers = values[0];
+    const headers = values[0];
     const row = values.find(r => r[0] === uuid);
     if (!row) return null;
 
@@ -218,9 +219,8 @@ function getFolioDetails(uuid) {
 
     const driveUrl = colDrive !== -1 ? row[colDrive] : row[8]; 
     
-    // Si queremos el PDF específico dentro de la carpeta:
-    let pdfBase64 = '';
-    let pdfUrl = '';
+    // Obtener ID del archivo PDF de la carpeta
+    let pdfFileId = '';
     
     try {
       const folderId = driveUrl.split('/folders/')[1].split('?')[0];
@@ -229,11 +229,10 @@ function getFolioDetails(uuid) {
       
       if (files.hasNext()) {
         const file = files.next();
-        pdfUrl = file.getUrl();
-        pdfBase64 = Utilities.base64Encode(file.getBlob().getBytes());
+        pdfFileId = file.getId();
       }
     } catch (e) {
-      console.warn('[GetFolioDetails] No se pudo cargar el PDF de Drive:', e);
+      console.warn('[GetFolioDetails] No se pudo obtener el PDF de Drive:', e);
     }
 
     return {
@@ -241,8 +240,12 @@ function getFolioDetails(uuid) {
       folio: row[2],
       servicio: row[5],
       estado: colEstado !== -1 ? row[colEstado] : 'S01_RECEPCION',
-      pdfBase64: pdfBase64,
-      pdfUrl: pdfUrl
+      pdfFileId: pdfFileId,
+      // Mapeo adicional para el formulario inicial
+      data: {
+        oficio_solicitud: row[6], // Referencia
+        tipo_tramite: row[3]      // Tipo
+      }
     };
 
   } catch (error) {
