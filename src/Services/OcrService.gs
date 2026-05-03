@@ -8,8 +8,8 @@
  */
 const OcrService = (() => {
 
-  /** @const {string} Modelo optimizado para extracción de datos */
-  const MODEL_ID = 'gemini-1.5-flash';
+  /** @const {string} Modelo optimizado para extracción de datos (Gemini 3 Flash) */
+  const MODEL_ID = 'gemini-3-flash';
 
   /** @const {string} Base URL del endpoint REST de Gemini */
   const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
