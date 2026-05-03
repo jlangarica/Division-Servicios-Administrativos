@@ -30,7 +30,7 @@
         <p style="font-size:13px; max-width:280px; margin-top:8px; line-height:1.5;">Arrastre el archivo PDF aquí o haga clic para explorar su equipo.</p>
         <span style="display:inline-block; margin-top:16px; padding:8px 16px; background:var(--color-primary); color:white; border-radius:var(--radius-md); font-weight:600; font-size:13px;">Seleccionar PDF</span>
       </div>
-      <input type="file" id="intake-file" style="display:none;" accept=".pdf" onchange="updateFileStatus(this)">
+      <input type="file" id="intake-file" style="display:none;" accept=".pdf" onchange="handleFileSelect(event)">
     </div>
 
     <!-- Visor (Visible cuando hay archivo) -->
@@ -47,7 +47,15 @@
   </div>
 
   <!-- PANEL DERECHO: Captura de Datos -->
-  <div style="flex: 0 0 400px; display:flex; flex-direction:column; gap:20px;">
+  <div style="flex: 0 0 400px; display:flex; flex-direction:column; gap:20px; position:relative;">
+
+    <!-- Overlay de carga IA (oculto por defecto) -->
+    <div id="ocr-loading-overlay" style="display:none; position:absolute; inset:0; z-index:20; background:rgba(255,255,255,0.85); backdrop-filter:blur(4px); border-radius:var(--radius-lg); flex-direction:column; align-items:center; justify-content:center; gap:16px;">
+      <div style="width:48px; height:48px; border:3px solid var(--color-neutral-200); border-top-color:var(--color-primary); border-radius:50%; animation: spin 0.8s linear infinite;"></div>
+      <span style="font-weight:700; font-size:14px; color:var(--color-primary);">🤖 Extrayendo datos con IA...</span>
+      <span style="font-size:11px; color:var(--color-neutral-500); max-width:240px; text-align:center; line-height:1.4;">Gemini está analizando el PDF. Los campos se autocompletarán en unos segundos.</span>
+    </div>
+
     <div class="card" style="padding: 24px;">
       <form id="form-nueva-solicitud" onsubmit="handleProcessIntake(event)">
         <div style="display:grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 20px;">
@@ -104,14 +112,38 @@
 
 </div>
 
+<style>
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Highlight pulsante para campos autocompletados por IA */
+  .ai-filled {
+    animation: aiPulse 1.5s ease;
+    box-shadow: 0 0 0 2px var(--color-primary-light) !important;
+  }
+  @keyframes aiPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(var(--color-primary-rgb, 99,102,241), 0.4); }
+    70%  { box-shadow: 0 0 0 6px rgba(var(--color-primary-rgb, 99,102,241), 0); }
+    100% { box-shadow: 0 0 0 0 rgba(var(--color-primary-rgb, 99,102,241), 0); }
+  }
+</style>
+
 <script>
+  /**
+   * Variable global para almacenar los items extraídos por la IA.
+   * Se podrán consumir en el futuro por el motor FSM o tabla temporal.
+   * @type {Array<Object>|null}
+   */
+  let _ocrExtractedItems = null;
+
   function handleDrop(e) {
     e.preventDefault();
     e.currentTarget.classList.remove('dragover');
     const files = e.dataTransfer.files;
     if (files.length) {
-      document.getElementById('intake-file').files = files;
-      updateFileStatus(document.getElementById('intake-file'));
+      const input = document.getElementById('intake-file');
+      input.files = files;
+      // Disparar el flujo OCR como si el usuario hubiera seleccionado el archivo
+      handleFileSelect({ target: input });
     }
   }
 
@@ -123,21 +155,23 @@
     else input.removeAttribute('required');
   }
 
+  /**
+   * Renderiza el PDF en el visor iframe del panel izquierdo.
+   * @param {HTMLInputElement} input Elemento file input con archivo seleccionado.
+   */
   function updateFileStatus(input) {
     const emptyState = document.getElementById('pdf-empty-state');
     const viewerContainer = document.getElementById('pdf-viewer-container');
     const iframe = document.getElementById('pdf-iframe');
     const pane = document.getElementById('pdf-preview-pane');
 
-    if (input.files.length) {
+    if (input.files && input.files.length) {
       const file = input.files[0];
 
       if (file.type === 'application/pdf') {
-        // Generar URL temporal para el blob del archivo local
         const blobUrl = URL.createObjectURL(file);
         iframe.src = blobUrl;
         
-        // Cambiar estados de UI
         emptyState.style.display = 'none';
         viewerContainer.style.display = 'flex';
         viewerContainer.style.height = '100%';
@@ -146,4 +180,100 @@
       }
     }
   }
+
+  /**
+   * Aplica un valor a un campo del formulario y dispara el evento 'change'
+   * para que la validación de la SPA reconozca el nuevo valor.
+   * Añade clase visual indicando autocompletado por IA.
+   *
+   * @param {string} fieldId ID del elemento HTML.
+   * @param {string} value Valor a asignar.
+   */
+  function setFieldWithAI(fieldId, value) {
+    const el = document.getElementById(fieldId);
+    if (!el || !value) return;
+    el.value = value;
+    el.classList.add('ai-filled');
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  /**
+   * Maneja la selección de archivos e inicia el OCR automático con IA.
+   * Flujo: Archivo → Base64 → Gemini → Autocompletar formulario → Renderizar PDF.
+   *
+   * @param {Event} event Evento 'change' del input file.
+   */
+  async function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file || file.type !== 'application/pdf') return;
+
+    const btn = document.getElementById('btn-submit-intake');
+    const overlay = document.getElementById('ocr-loading-overlay');
+    const originalText = btn.innerHTML;
+
+    // 1. Mostrar estado de carga
+    btn.disabled = true;
+    btn.innerHTML = '<div class="btn-spinner" style="display:block;"></div> IA Analizando...';
+    overlay.style.display = 'flex';
+    document.body.classList.add('is-syncing');
+
+    // 2. Renderizar el PDF inmediatamente en el visor (no esperar a la IA)
+    updateFileStatus(event.target);
+
+    // 3. Convertir a Base64 y despachar a Gemini
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+      const base64Data = e.target.result.split(',')[1];
+
+      try {
+        const data = await AsyncRunner.run('processOcrEndpoint', base64Data, file.type);
+
+        if (data && !data.error) {
+          // ─── Autocompletar campos del formulario ───
+          setFieldWithAI('intake-oficio', data.numero_oficio_solicitud);
+          setFieldWithAI('intake-servicio', data.servicio_solicitante);
+
+          // Priorizar fecha de recepción (sello) sobre elaboración
+          const fechaTarget = data.fecha_sello_recepcion || data.fecha_elaboracion;
+          if (fechaTarget) {
+            setFieldWithAI('intake-fecha', fechaTarget);
+          }
+
+          // Manejar Negativa
+          if (data.es_negativa) {
+            const checkNegativa = document.getElementById('intake-has-negativa');
+            checkNegativa.checked = true;
+            checkNegativa.dispatchEvent(new Event('change', { bubbles: true }));
+
+            // Extraer solo la fecha (YYYY-MM-DD) de la fecha/hora de negativa
+            const fechaNeg = data.fecha_hora_negativa?.split(' ')[0] || '';
+            if (fechaNeg) {
+              setFieldWithAI('intake-fecha-negativa', fechaNeg);
+            }
+          }
+
+          // Almacenar items extraídos para uso futuro (FSM / tabla)
+          _ocrExtractedItems = data.items || [];
+
+          Toast.show('✨ Datos extraídos correctamente por IA (' + (_ocrExtractedItems.length) + ' insumos)');
+          console.log('[OCR] Extracción completa:', JSON.stringify(data, null, 2));
+
+        } else if (data && data.error) {
+          throw new Error(data.error);
+        }
+
+      } catch (err) {
+        console.error('[OCR] Error:', err);
+        Toast.show('⚠️ IA: No se pudieron extraer datos. Complete manualmente.');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        overlay.style.display = 'none';
+        document.body.classList.remove('is-syncing');
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+</script>
+}
 </script>
