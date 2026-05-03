@@ -9,82 +9,81 @@
   </button>
 </div>
 
-<div class="grid-2col" style="flex:1; align-items:flex-start;">
+<div class="split-view" style="display:flex; gap:24px; flex:1; min-height:0; align-items:stretch;">
   
-  <!-- PANEL IZQUIERDO: Captura de Datos -->
-  <div class="card" style="padding: 32px;">
-    <form id="form-nueva-solicitud" onsubmit="handleProcessIntake(event)">
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;">
-        <!-- Tipo de Trámite: Fijo y Oculto según requerimiento -->
-        <input type="hidden" id="intake-tipo" value="COMPRA POR FONDO">
-
-        <div class="glass-input-group">
-          <label class="glass-input-label">Fecha de Oficio</label>
-          <input type="date" id="intake-fecha" class="glass-input" required>
-        </div>
-
-        <div class="glass-input-group">
-          <label class="glass-input-label">Número de Oficio</label>
-          <input type="text" id="intake-oficio" class="glass-input" placeholder="Ej. HCG/DSA/001/2024" required>
-        </div>
-
-        <div class="glass-input-group" style="grid-column: span 2;">
-          <label class="glass-input-label">Servicio Solicitante</label>
-          <input type="text" id="intake-servicio" class="glass-input" placeholder="Nombre de la unidad o departamento" required>
-        </div>
-
-        <!-- Módulo de Negativa -->
-        <div class="glass-input-group" style="grid-column: span 1; display:flex; align-items:center; gap:12px; padding-top:10px;">
-          <label class="glass-input-label" style="margin-bottom:0; cursor:pointer;">
-            <input type="checkbox" id="intake-has-negativa" style="width:18px; height:18px; accent-color:var(--color-primary);" onchange="toggleNegativaDate(this.checked)">
-            ¿Contiene Negativa?
-          </label>
-        </div>
-
-        <div id="negativa-date-container" class="glass-input-group" style="grid-column: span 1; display:none;">
-          <label class="glass-input-label">Fecha de Negativa</label>
-          <input type="date" id="intake-fecha-negativa" class="glass-input">
-        </div>
-      </div>
-
-      <div class="glass-input-group">
-        <label class="glass-input-label">Carga de Oficio (PDF)</label>
-        <div class="drop-zone" onclick="document.getElementById('intake-file').click()" ondragover="this.classList.add('dragover'); event.preventDefault();" ondragleave="this.classList.remove('dragover')" ondrop="handleDrop(event)">
-          <div class="drop-zone-content">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-            <p id="file-status">Arrastre el PDF aquí o haga clic para buscar</p>
-            <span style="font-size:10px; color:var(--color-neutral-400);">Tamaño máximo: 10MB</span>
-          </div>
-          <input type="file" id="intake-file" style="display:none;" accept=".pdf" onchange="updateFileStatus(this)">
-        </div>
-      </div>
-
-      <div style="margin-top:32px;">
-        <button type="submit" id="btn-submit-intake" class="btn btn-primary" style="width:100%; justify-content:center; height:48px;">
-          <span class="btn-text">Generar Folio e Iniciar Workflow</span>
-          <div class="btn-spinner"></div>
-        </button>
-      </div>
-    </form>
+  <!-- PANEL IZQUIERDO: Visor PDF Interactivo -->
+  <div class="card" id="pdf-preview-pane" style="flex: 1 1 60%; display:flex; flex-direction:column; padding:0; overflow:hidden; background:var(--color-neutral-100); border: 2px dashed var(--color-neutral-300);">
+    <div id="pdf-empty-state" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--color-neutral-400); padding: 40px; text-align:center;">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:16px; opacity:0.5;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+      <p style="font-weight:600; font-size:14px;">Previsualización del Oficio</p>
+      <p style="font-size:12px; max-width:240px; margin-top:8px;">Cargue un archivo PDF para visualizarlo aquí y verificar los datos antes de registrar.</p>
+    </div>
+    <div id="pdf-viewer-container" style="display:none; flex:1;">
+      <iframe id="pdf-iframe" style="width:100%; height:100%; border:none;" type="application/pdf"></iframe>
+    </div>
   </div>
 
-  <!-- PANEL DERECHO: Instrucciones y Ayuda -->
-  <div style="display:flex; flex-direction:column; gap:20px;">
-    <div class="card" style="background:var(--color-primary-light); border:none;">
-      <h3 style="font-size:16px; font-weight:700; margin-bottom:12px; color:var(--color-primary);">Guía de Registro</h3>
-      <ul style="font-size:13px; color:var(--color-neutral-700); padding-left:20px; display:flex; flex-direction:column; gap:8px;">
-        <li>Asegúrese de que el PDF sea legible y contenga las firmas correspondientes.</li>
-        <li>El número de oficio será validado para evitar duplicidades institucionales.</li>
-        <li>Una vez generado el folio, el sistema notificará automáticamente al departamento encargado de la recepción física.</li>
-      </ul>
+  <!-- PANEL DERECHO: Captura de Datos -->
+  <div style="flex: 0 0 400px; display:flex; flex-direction:column; gap:20px;">
+    <div class="card" style="padding: 24px;">
+      <form id="form-nueva-solicitud" onsubmit="handleProcessIntake(event)">
+        <div style="display:grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 20px;">
+          <!-- Tipo de Trámite: Fijo y Oculto -->
+          <input type="hidden" id="intake-tipo" value="COMPRA POR FONDO">
+
+          <div class="glass-input-group">
+            <label class="glass-input-label">Número de Oficio</label>
+            <input type="text" id="intake-oficio" class="glass-input" placeholder="Ej. HCG/DSA/001/2024" required>
+          </div>
+
+          <div class="glass-input-group">
+            <label class="glass-input-label">Fecha de Oficio</label>
+            <input type="date" id="intake-fecha" class="glass-input" required>
+          </div>
+
+          <div class="glass-input-group">
+            <label class="glass-input-label">Servicio Solicitante</label>
+            <input type="text" id="intake-servicio" class="glass-input" placeholder="Nombre de la unidad o departamento" required>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+            <div class="glass-input-group" style="display:flex; align-items:center; gap:8px;">
+              <label class="glass-input-label" style="margin-bottom:0; cursor:pointer; display:flex; align-items:center; gap:8px; font-size:12px;">
+                <input type="checkbox" id="intake-has-negativa" style="width:16px; height:16px; accent-color:var(--color-primary);" onchange="toggleNegativaDate(this.checked)">
+                ¿Negativa?
+              </label>
+            </div>
+            <div id="negativa-date-container" class="glass-input-group" style="display:none;">
+              <input type="date" id="intake-fecha-negativa" class="glass-input" style="height:32px; font-size:11px;">
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-input-group">
+          <label class="glass-input-label">Archivo PDF</label>
+          <div class="drop-zone" style="padding: 20px; min-height: 100px;" onclick="document.getElementById('intake-file').click()" ondragover="this.classList.add('dragover'); event.preventDefault();" ondragleave="this.classList.remove('dragover')" ondrop="handleDrop(event)">
+            <div class="drop-zone-content">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+              <p id="file-status" style="font-size:11px; margin-top:8px;">Subir o arrastrar PDF</p>
+            </div>
+            <input type="file" id="intake-file" style="display:none;" accept=".pdf" onchange="updateFileStatus(this)">
+          </div>
+        </div>
+
+        <div style="margin-top:24px;">
+          <button type="submit" id="btn-submit-intake" class="btn btn-primary" style="width:100%; justify-content:center; height:44px;">
+            <span class="btn-text">Iniciar Gestión DSA</span>
+            <div class="btn-spinner"></div>
+          </button>
+        </div>
+      </form>
     </div>
 
-    <div class="card" style="border: 1px dashed var(--color-neutral-300); background:transparent;">
-      <h3 style="font-size:14px; font-weight:700; color:var(--color-neutral-500); margin-bottom:8px;">Estado del Sistema</h3>
-      <div style="display:flex; align-items:center; gap:8px;">
-        <span class="badge-dot" style="background:var(--color-success);"></span>
-        <span style="font-size:12px; color:var(--color-neutral-600);">Motor FSM Activo (V8)</span>
-      </div>
+    <div class="card" style="background:var(--color-primary-light); border:none; padding:16px;">
+      <h3 style="font-size:14px; font-weight:700; margin-bottom:8px; color:var(--color-primary);">Requisito Legal</h3>
+      <p style="font-size:11px; color:var(--color-neutral-700); line-height:1.5;">
+        La certificación de negativa es indispensable para legalizar la compra por fondo. Asegúrese de que la fecha coincida con el sello del almacén.
+      </p>
     </div>
   </div>
 
@@ -111,10 +110,29 @@
 
   function updateFileStatus(input) {
     const status = document.getElementById('file-status');
+    const emptyState = document.getElementById('pdf-empty-state');
+    const viewerContainer = document.getElementById('pdf-viewer-container');
+    const iframe = document.getElementById('pdf-iframe');
+    const pane = document.getElementById('pdf-preview-pane');
+
     if (input.files.length) {
-      status.textContent = 'Archivo listo: ' + input.files[0].name;
+      const file = input.files[0];
+      status.textContent = 'Archivo listo: ' + file.name;
       status.style.color = 'var(--color-success)';
       status.style.fontWeight = '700';
+
+      if (file.type === 'application/pdf') {
+        // Generar URL temporal para el blob del archivo local
+        const blobUrl = URL.createObjectURL(file);
+        iframe.src = blobUrl;
+        
+        // Cambiar estados de UI
+        emptyState.style.display = 'none';
+        viewerContainer.style.display = 'flex';
+        viewerContainer.style.height = '100%';
+        pane.style.border = 'none';
+        pane.style.background = 'white';
+      }
     }
   }
 </script>
