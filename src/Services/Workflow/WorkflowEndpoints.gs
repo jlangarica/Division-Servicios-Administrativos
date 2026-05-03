@@ -47,19 +47,91 @@ function dispatchWorkflowEventEndpoint(uuid_folio, event, payload = {}) {
 }
 
 
+// ────────────────────────────────────────────────────────
+//  GOOGLE PICKER — Configuración de Credenciales
+// ────────────────────────────────────────────────────────
+
+/**
+ * Retorna la configuración necesaria para instanciar el Google Picker
+ * en el frontend. No expone API Keys — solo el token OAuth de la sesión
+ * activa y el ID de la carpeta buffer.
+ *
+ * @returns {{ oauthToken: string, folderId: string }}
+ */
+function getPickerConfig() {
+  try {
+    const oauthToken = ScriptApp.getOAuthToken();
+    const folderId = CONFIG.OCR_BUFFER_FOLDER_ID;
+
+    if (!folderId) {
+      throw new Error('OCR_BUFFER_FOLDER_ID no configurado en ScriptProperties.');
+    }
+
+    return { oauthToken, folderId };
+  } catch (error) {
+    console.error('[WorkflowEndpoints] Error en getPickerConfig:', error);
+    throw new Error('No se pudo obtener la configuración del Picker: ' + error.message);
+  }
+}
+
+
+// ────────────────────────────────────────────────────────
+//  OCR — Ingesta via FileId + Atomic Trash
+// ────────────────────────────────────────────────────────
+
 /**
  * Endpoint RPC para extracción OCR con Gemini AI.
- * Expuesto al frontend vía google.script.run (AsyncRunner).
+ * Recibe un fileId de Drive (subido por Picker), extrae el blob,
+ * lo envía a Gemini y elimina atómicamente el archivo temporal.
  *
- * @param {string} base64Data Archivo PDF codificado en Base64.
- * @param {string} mimeType Tipo MIME del archivo (ej. 'application/pdf').
+ * REGLA DE ORO: "No Base64 in RPC" — el binario viaja por Drive, no por parámetros.
+ * REGLA DE ORO: "Atomic Trash" — el archivo se elimina en la misma ejecución, sin excepciones.
+ *
+ * @param {string} fileId ID del archivo en Google Drive (subido por Picker).
  * @returns {Object} Datos estructurados extraídos, o { success: false, error }.
  */
-function processOcrEndpoint(base64Data, mimeType) {
+function processOcrEndpoint(fileId) {
+  /** @type {GoogleAppsScript.Drive.File|null} */
+  let driveFile = null;
+
   try {
-    return OcrService.analyzeDocumentWithGemini(base64Data, mimeType);
+    // 0. Validación del fileId
+    if (!fileId || typeof fileId !== 'string') {
+      throw new Error('fileId inválido o ausente.');
+    }
+
+    // 1. Ingesta — Obtener el blob del archivo desde Drive
+    console.log('[OCR Endpoint] Obteniendo archivo de Drive: %s', fileId);
+    driveFile = DriveApp.getFileById(fileId);
+
+    const blob = driveFile.getBlob();
+    const mimeType = blob.getContentType();
+    const base64Data = Utilities.base64Encode(blob.getBytes());
+
+    console.log(
+      '[OCR Endpoint] Archivo cargado — MIME: %s, Size: %s bytes',
+      mimeType,
+      blob.getBytes().length
+    );
+
+    // 2. Análisis — Ejecutar extracción AI
+    const result = OcrService.analyzeDocumentWithGemini(base64Data, mimeType);
+
+    return result;
+
   } catch (e) {
     console.error('[WorkflowEndpoints] OCR Endpoint Error:', e.message);
     return { success: false, error: e.message };
+
+  } finally {
+    // 3. Clean-up Atómico — SIEMPRE mover a papelera
+    if (driveFile) {
+      try {
+        driveFile.setTrashed(true);
+        console.log('[OCR Endpoint] Archivo efímero eliminado: %s', fileId);
+      } catch (trashError) {
+        console.error('[OCR Endpoint] FALLO al eliminar archivo temporal:', trashError.message);
+      }
+    }
   }
 }
