@@ -201,6 +201,7 @@
 
       const docsView = new google.picker.DocsView(google.picker.ViewId.DOCS)
         .setMimeTypes('application/pdf')
+        .setMode(google.picker.DocsViewMode.LIST) // Recomendado por la doc oficial para drive.file
         .setSelectFolderEnabled(false);
 
       const picker = new google.picker.PickerBuilder()
@@ -208,8 +209,10 @@
         .addView(docsView)
         .setOAuthToken(config.oauthToken)
         .setDeveloperKey(config.developerKey)
-        .setOrigin(google.script.host.origin)
-        .setTitle('Seleccionar Oficio de Solicitud (PDF)')
+        .setAppId(config.appId)               // <-- Identificación de App (Doc oficial)
+        .setOrigin(google.script.host.origin) // <-- Handshake de seguridad
+        .setTitle('Gestión Documental HCG — Seleccionar Oficio')
+        .enableFeature(google.picker.Feature.NAV_HIDDEN) // UI más limpia según doc
         .setCallback(function(result) {
           handlePickerResult(result, config, btn, originalText);
         })

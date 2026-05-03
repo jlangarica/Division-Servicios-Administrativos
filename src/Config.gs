@@ -35,7 +35,10 @@ const CONFIG = (function() {
     OCR_BUFFER_FOLDER_ID: props.OCR_BUFFER_FOLDER_ID || '',
 
     /** API Key de navegador (GCP) para Google Picker. Restringida a *.googleusercontent.com */
-    GOOGLE_DEV_KEY: props.GOOGLE_DEV_KEY || ''
+    GOOGLE_DEV_KEY: props.GOOGLE_DEV_KEY || '',
+
+    /** Número de Proyecto de Google Cloud (AppId). Requerido por la doc oficial. */
+    GOOGLE_PROJECT_NUMBER: props.GOOGLE_PROJECT_NUMBER || ''
   };
 })();
 
