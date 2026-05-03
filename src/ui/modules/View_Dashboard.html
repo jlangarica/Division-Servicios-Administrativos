@@ -147,40 +147,8 @@
           Actividad Reciente
         </h2>
       </div>
-      <div class="stagger-children" style="display:flex;flex-direction:column;gap:var(--space-3);">
-
-        <div style="display:flex;align-items:flex-start;gap:var(--space-3);padding:var(--space-3);border-radius:var(--radius-md);transition:background var(--duration-fast) var(--ease-out-quart);" onmouseenter="this.style.background='var(--color-surface-dim)'" onmouseleave="this.style.background='transparent'">
-          <div style="width:8px;height:8px;border-radius:50%;background:var(--color-success);margin-top:6px;flex-shrink:0;"></div>
-          <div>
-            <div style="font-size:var(--text-sm);font-weight:500;color:var(--color-neutral-800);">Requisición REQ-2024-045 aprobada</div>
-            <div style="font-size:var(--text-xs);color:var(--color-neutral-500);margin-top:2px;">Hace 15 minutos</div>
-          </div>
-        </div>
-
-        <div style="display:flex;align-items:flex-start;gap:var(--space-3);padding:var(--space-3);border-radius:var(--radius-md);transition:background var(--duration-fast) var(--ease-out-quart);" onmouseenter="this.style.background='var(--color-surface-dim)'" onmouseleave="this.style.background='transparent'">
-          <div style="width:8px;height:8px;border-radius:50%;background:var(--color-primary);margin-top:6px;flex-shrink:0;"></div>
-          <div>
-            <div style="font-size:var(--text-sm);font-weight:500;color:var(--color-neutral-800);">Nuevo proveedor registrado: MedSum S.A.</div>
-            <div style="font-size:var(--text-xs);color:var(--color-neutral-500);margin-top:2px;">Hace 1 hora</div>
-          </div>
-        </div>
-
-        <div style="display:flex;align-items:flex-start;gap:var(--space-3);padding:var(--space-3);border-radius:var(--radius-md);transition:background var(--duration-fast) var(--ease-out-quart);" onmouseenter="this.style.background='var(--color-surface-dim)'" onmouseleave="this.style.background='transparent'">
-          <div style="width:8px;height:8px;border-radius:50%;background:var(--color-warning);margin-top:6px;flex-shrink:0;"></div>
-          <div>
-            <div style="font-size:var(--text-sm);font-weight:500;color:var(--color-neutral-800);">Anexo Técnico V3 generado</div>
-            <div style="font-size:var(--text-xs);color:var(--color-neutral-500);margin-top:2px;">Hace 3 horas</div>
-          </div>
-        </div>
-
-        <div style="display:flex;align-items:flex-start;gap:var(--space-3);padding:var(--space-3);border-radius:var(--radius-md);transition:background var(--duration-fast) var(--ease-out-quart);" onmouseenter="this.style.background='var(--color-surface-dim)'" onmouseleave="this.style.background='transparent'">
-          <div style="width:8px;height:8px;border-radius:50%;background:var(--color-error);margin-top:6px;flex-shrink:0;"></div>
-          <div>
-            <div style="font-size:var(--text-sm);font-weight:500;color:var(--color-neutral-800);">REQ-2024-042 rechazada — falta documentación</div>
-            <div style="font-size:var(--text-xs);color:var(--color-neutral-500);margin-top:2px;">Ayer, 17:45</div>
-          </div>
-        </div>
-
+      <div id="recent-activity-container" class="stagger-children" style="display:flex;flex-direction:column;gap:var(--space-3);">
+        <div style="text-align:center; padding: 20px; color: var(--color-neutral-400); font-size: 13px;">Cargando actividad...</div>
       </div>
     </div>
 

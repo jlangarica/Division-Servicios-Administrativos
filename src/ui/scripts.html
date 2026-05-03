@@ -654,7 +654,7 @@ document.addEventListener('viewLoaded', function(e) {
 });
 
 
-function initDashboard() {
+async function initDashboard() {
   if (typeof AppState === 'undefined' || !AppState.user) return;
 
   const { prefix, name, role } = AppState.user;
@@ -673,22 +673,71 @@ function initDashboard() {
     });
   }
 
-  // Animated counters con easing
-  document.querySelectorAll('[data-counter]').forEach(el => {
-    const target = parseInt(el.getAttribute('data-counter'), 10);
-    const duration = 1200;
-    let startTime = null;
+  try {
+    // 1. Obtener estadísticas reales del servidor
+    const stats = await AsyncRunner.run('getDashboardStats');
+    if (!stats) return;
 
-    const animate = (ts) => {
-      if (!startTime) startTime = ts;
-      const progress = Math.min((ts - startTime) / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      el.textContent = Math.floor(eased * target).toLocaleString('es-MX');
-      if (progress < 1) requestAnimationFrame(animate);
-      else el.textContent = target.toLocaleString('es-MX');
-    };
+    // 2. Actualizar contadores con animación
+    const mappings = [
+      { id: 'stat-total-expedientes', value: stats.total },
+      { id: 'stat-activas', value: stats.activas },
+      { id: 'stat-pendientes', value: stats.pendientesAprobacion },
+      { id: 'stat-finalizados', value: stats.finalizadas }
+    ];
 
-    requestAnimationFrame(animate);
-  });
+    mappings.forEach(m => {
+      const el = document.getElementById(m.id);
+      if (el) {
+        animateCounter(el, m.value);
+      }
+    });
+
+    // 3. Renderizar Actividad Reciente
+    const activityContainer = document.getElementById('recent-activity-container');
+    if (activityContainer && stats.recentActivity) {
+      if (stats.recentActivity.length === 0) {
+        activityContainer.innerHTML = '<div style="text-align:center; padding: 20px; color: var(--color-neutral-400); font-size: 12px;">Sin actividad reciente</div>';
+      } else {
+        activityContainer.innerHTML = stats.recentActivity.map(act => {
+          const date = new Date(act.timestamp);
+          const timeStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          
+          let dotColor = 'var(--color-primary)';
+          if (act.evento.includes('REJECT')) dotColor = 'var(--color-error)';
+          if (act.evento.includes('ADVANCE')) dotColor = 'var(--color-success)';
+
+          return `
+            <div style="display:flex;align-items:flex-start;gap:var(--space-3);padding:var(--space-3);border-radius:var(--radius-md);transition:background 0.2s;" onmouseenter="this.style.background='var(--color-surface-dim)'" onmouseleave="this.style.background='transparent'">
+              <div style="width:8px;height:8px;border-radius:50%;background:${dotColor};margin-top:6px;flex-shrink:0;"></div>
+              <div>
+                <div style="font-size:var(--text-sm);font-weight:500;color:var(--color-neutral-800);">${act.evento}: ${act.uuid.substring(0,8)}...</div>
+                <div style="font-size:var(--text-xs);color:var(--color-neutral-500);margin-top:2px;">Por ${act.usuario} · ${timeStr}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+  } catch (err) {
+    console.error('[Dashboard] Error al cargar estadísticas:', err);
+  }
+}
+
+function animateCounter(el, target) {
+  const duration = 1200;
+  let startTime = null;
+
+  const animate = (ts) => {
+    if (!startTime) startTime = ts;
+    const progress = Math.min((ts - startTime) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    el.textContent = Math.floor(eased * target).toLocaleString('es-MX');
+    if (progress < 1) requestAnimationFrame(animate);
+    else el.textContent = target.toLocaleString('es-MX');
+  };
+
+  requestAnimationFrame(animate);
 }
 </script>
