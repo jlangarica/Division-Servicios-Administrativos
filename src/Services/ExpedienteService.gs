@@ -1,8 +1,5 @@
 /**
  * Servicio para la gestión de expedientes y recepción de oficios.
- *
- * @fileoverview Lógica transaccional para la División de Servicios Administrativos (DSA).
- * Conecta la UI con Google Drive y Google Sheets.
  */
 
 /**
@@ -17,6 +14,8 @@
  * @property {string} servicio_solicitante
  * @property {string} oficio_solicitud
  * @property {string} atiende
+ * @property {boolean} tiene_negativa
+ * @property {string} [fecha_negativa]
  *
  * @typedef {Object} IntakeDTO
  * @property {FileData} fileData
@@ -25,111 +24,81 @@
 
 /**
  * Registra el ingreso de un oficio, creando una entidad digital centralizada.
- * Utiliza LockService para concurrencia.
+ * Utiliza LockService para garantizar la atomicidad del folio.
  *
  * @param {IntakeDTO} payload Datos desde el Frontend.
  * @returns {Object} Respuesta {success, folio, viewUrl, fileId, error}
  */
 function processIntake(payload) {
-  // --- Validación server-side (defensa en profundidad) ---
-  if (!payload || !payload.fileData || !payload.formData) {
-    return { success: false, error: 'Payload incompleto.' };
+  // 1. Validación exhaustiva
+  if (!payload?.fileData?.base64 || !payload?.formData) {
+    return { success: false, error: 'Información de registro incompleta.' };
   }
 
   const { fileData, formData } = payload;
-
-  if (!fileData.base64 || !fileData.mimeType || !fileData.fileName) {
-    return { success: false, error: 'Datos de archivo incompletos.' };
-  }
-
-  // Validar que sea PDF (el cliente valida, pero el servidor debe verificar también)
-  if (fileData.mimeType !== 'application/pdf') {
-    return { success: false, error: 'Solo se aceptan archivos PDF.' };
-  }
-
-  // Validar tamaño máximo (10 MB en base64 ≈ ~13.3 MB en texto)
-  if (fileData.base64.length > 14000000) {
-    return { success: false, error: 'El archivo excede el tamaño máximo permitido (10 MB).' };
-  }
-
   const requiredFields = ['tipo_tramite', 'fecha_recepcion', 'servicio_solicitante', 'oficio_solicitud'];
+  
   for (const field of requiredFields) {
-    if (!formData[field] || !formData[field].trim()) {
-      return { success: false, error: `Campo requerido faltante: ${field}` };
+    if (!formData[field]?.trim()) {
+      return { success: false, error: `El campo [${field}] es obligatorio.` };
     }
+  }
+
+  if (fileData.mimeType !== 'application/pdf') {
+    return { success: false, error: 'Solo se permiten archivos en formato PDF.' };
   }
 
   const lock = LockService.getScriptLock();
   try {
-    // 1. Asignación de Folio (Bloqueo de concurrencia)
-    // Espera hasta 10 segundos para adquirir el lock
-    lock.waitLock(10000);
+    // 2. Adquisición de Lock (Máximo 15s para procesos de Drive)
+    lock.waitLock(15000);
     
-    // Obtener hoja de base de datos
     const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
-    let sheet = ss.getSheetByName(SHEETS.BASE_DATOS);
-    if (!sheet) {
-        // Fallback a la primera hoja si no existe por nombre
-        sheet = ss.getSheets()[0];
-    }
-
+    const sheet = ss.getSheetByName(SHEETS.BASE_DATOS) || ss.getSheets()[0];
     const lastRow = sheet.getLastRow();
+    const dataRange = lastRow > 1 ? sheet.getRange(2, 7, lastRow - 1, 1).getValues().flat() : [];
 
-    if (lastRow >= 2) {
-      // 1. Solo leemos la columna de referencia (columna G = índice 7)
-      const oficiosRange = sheet.getRange(2, 7, lastRow - 1, 1); 
-      const oficios = oficiosRange.getValues().flat();
-
-      const isDuplicate = oficios.includes(formData.oficio_solicitud);
-      if (isDuplicate) {
-        return { success: false, error: 'La referencia del oficio ya se encuentra registrada en el sistema.' };
-      }
+    // Verificación de duplicados por Referencia (Columna G - Oficio Solicitud)
+    if (dataRange.includes(formData.oficio_solicitud.trim())) {
+      return { success: false, error: 'Este número de oficio ya ha sido registrado previamente.' };
     }
 
-    // Calcular folios (Correlativo numérico)
-    // Descontamos la cabecera
-    const correlativo = lastRow === 0 ? 1 : lastRow; 
+    // 3. Generación de Folio y Metadatos
+    const correlativo = lastRow === 0 ? 1 : lastRow; // 1-based index excluyendo header
     const anio = new Date().getFullYear();
-    
     const idInterno = generateUUID();
     const idFolio = `${correlativo}/${anio}`;
     const folioDsa = `DSA-${anio}-${String(correlativo).padStart(3, '0')}`;
 
-    // Formato de Fecha: YYYY-MM-DD -> DD/MM/YYYY
-    const partesFecha = payload.formData.fecha_recepcion.split('-');
-    let fechaFormateada = payload.formData.fecha_recepcion;
-    if (partesFecha.length === 3) {
-      fechaFormateada = `${partesFecha[2]}/${partesFecha[1]}/${partesFecha[0]}`;
-    }
+    // Formateo de fecha ISO a Regional
+    const [y, m, d] = formData.fecha_recepcion.split('-');
+    const fechaFormateada = (y && m && d) ? `${d}/${m}/${y}` : formData.fecha_recepcion;
 
-    // 2. Estructura en Drive
+    // 4. Operaciones en Google Drive
     const rootFolder = DriveApp.getFolderById(DRIVE_CONFIG.EXPEDIENTES_FOLDER_ID);
     const expedienteFolder = rootFolder.createFolder(`Folio_${folioDsa}_DSA`);
     
-    // 3. Persistencia del Archivo Oficio
-    const decodedFile = Utilities.base64Decode(payload.fileData.base64);
-    const blob = Utilities.newBlob(decodedFile, payload.fileData.mimeType, `Oficio_${folioDsa}_${payload.fileData.fileName}`);
+    const decodedFile = Utilities.base64Decode(fileData.base64);
+    const blob = Utilities.newBlob(decodedFile, fileData.mimeType, `Oficio_${folioDsa}_${fileData.fileName}`);
     const file = expedienteFolder.createFile(blob);
     
-    // 4. Registro en Base de Datos (Sheets)
-    // Orden de columnas en el Segmento [1] de Ingreso:
+    // 5. Persistencia en Sheet
     const rowData = [
-      idInterno,                                // UUID
-      idFolio,                                  // 1/2026
-      folioDsa,                                 // DSA-2026-001
-      payload.formData.tipo_tramite,            // COMPRA POR FONDO
-      fechaFormateada,                          // DD/MM/YYYY
-      payload.formData.servicio_solicitante,    // Unidad
-      payload.formData.oficio_solicitud,        // Referencia
-      payload.formData.atiende,                 // Correo sesión
-      expedienteFolder.getUrl(),                // URL Drive
-      payload.formData.tiene_negativa,          // ¿Negativa?
-      payload.formData.fecha_negativa           // Fecha Negativa
+      idInterno,                                // A: UUID
+      idFolio,                                  // B: ID Folio
+      folioDsa,                                 // C: Folio DSA
+      formData.tipo_tramite,                    // D: Tipo
+      fechaFormateada,                          // E: Fecha Recepción
+      formData.servicio_solicitante,            // F: Servicio
+      formData.oficio_solicitud.trim(),         // G: Referencia
+      formData.atiende,                         // H: Responsable
+      expedienteFolder.getUrl(),                // I: URL Drive
+      formData.tiene_negativa || false,         // J: ¿Negativa?
+      formData.fecha_negativa || ''             // K: Fecha Negativa
     ];
     
-    // 2. Escritura optimizada (appendRow es lento en transacciones grandes)
     sheet.getRange(lastRow + 1, 1, 1, rowData.length).setValues([rowData]);
-    SpreadsheetApp.flush(); // Forzar la escritura
+    SpreadsheetApp.flush(); 
     
     return {
       success: true,
@@ -139,23 +108,16 @@ function processIntake(payload) {
     };
     
   } catch (error) {
-    console.error('[ExpedienteService] Error en processIntake:', error);
-    return { success: false, error: error.message };
+    console.error('[ExpedienteService] processIntake Failure:', error);
+    return { success: false, error: `Error en el servidor: ${error.message}` };
   } finally {
-    // Liberar siempre el lock
     lock.releaseLock();
   }
 }
 
 /**
- * Obtiene las solicitudes activas para la bandeja del usuario.
- * Filtra por rol o asignación según el motor de workflow.
- * 
- * @returns {Array<Object>} Lista de expedientes para el Kanban.
- */
-/**
- * Obtiene todos los expedientes registrados para la vista de biblioteca histórica.
- * @returns {Array<Object>} Lista de expedientes enriquecida con el año.
+ * Obtiene la biblioteca de expedientes con mapeo dinámico de columnas.
+ * @returns {Array<Object>}
  */
 function getExpedientesLibrary() {
   try {
@@ -163,39 +125,47 @@ function getExpedientesLibrary() {
     const sheet = ss.getSheetByName(SHEETS.BASE_DATOS);
     if (!sheet) return [];
 
-    const values = sheet.getDataRange().getValues();
-    if (values.length < 2) return [];
+    const data = sheet.getDataRange().getValues();
+    if (data.length < 2) return [];
 
-    const headers = values[0];
-    const colUUID = 0;
-    const colFolio = 2; 
-    const colTipo = 3;
-    const colFecha = 4;
-    const colServicio = 5;
-    const colEstado = headers.findIndex(h => h.toString().toLowerCase() === 'estado_actual' || h.toString().toLowerCase() === 'estatus');
+    const headers = data[0].map(h => String(h).toLowerCase());
+    const idx = {
+      uuid: headers.indexOf('uuid'),
+      folio: headers.indexOf('folio_dsa'),
+      tipo: headers.indexOf('tipo_tramite'),
+      fecha: headers.indexOf('fecha_recepcion'),
+      servicio: headers.indexOf('servicio_solicitante'),
+      estado: headers.findIndex(h => h.includes('estado') || h.includes('estatus'))
+    };
 
-    return values.slice(1).map(row => {
-      const folio = String(row[colFolio]);
+    // Fallbacks si las cabeceras no coinciden exactamente
+    if (idx.uuid === -1) idx.uuid = 0;
+    if (idx.folio === -1) idx.folio = 2;
+
+    return data.slice(1).map(row => {
+      const folio = String(row[idx.folio]);
       const anioMatch = folio.match(/-(\d{4})-/);
-      const anio = anioMatch ? anioMatch[1] : new Date().getFullYear().toString();
-
+      
       return {
-        uuid: row[colUUID],
+        uuid: row[idx.uuid],
         folio: folio,
-        tipo: row[colTipo],
-        fecha: row[colFecha],
-        servicio: row[colServicio],
-        estado: colEstado !== -1 ? row[colEstado] : 'S01_RECEPCION',
-        anio: anio
+        tipo: idx.tipo !== -1 ? row[idx.tipo] : 'N/A',
+        fecha: idx.fecha !== -1 ? row[idx.fecha] : '',
+        servicio: idx.servicio !== -1 ? row[idx.servicio] : '',
+        estado: idx.estado !== -1 ? row[idx.estado] : 'S01_RECEPCION',
+        anio: anioMatch ? anioMatch[1] : new Date().getFullYear().toString()
       };
-    }).reverse(); 
+    }).reverse();
 
   } catch (error) {
-    console.error('[ExpedienteService] Error en getExpedientesLibrary:', error);
+    console.error('[ExpedienteService] getExpedientesLibrary Error:', error);
     return [];
   }
 }
 
+/**
+ * Obtiene solicitudes filtradas por usuario o rol.
+ */
 function getSolicitudesPorUsuario() {
   try {
     const user = getActiveUserSession();
@@ -205,97 +175,90 @@ function getSolicitudesPorUsuario() {
     const sheet = ss.getSheetByName(SHEETS.BASE_DATOS);
     if (!sheet) return [];
 
-    const values = sheet.getDataRange().getValues();
-    if (values.length < 2) return [];
+    const data = sheet.getDataRange().getValues();
+    if (data.length < 2) return [];
 
-    const headers = values[0];
-    const colUUID = 0;
-    const colFolio = 2; // folioDsa
-    const colServicio = 5; // servicio_solicitante
-    const colAtiende = 7; // atiende
-    
-    const colEstado = headers.findIndex(h => 
-      h.toString().toLowerCase() === 'estado_actual' || 
-      h.toString().toLowerCase() === 'estatus'
-    );
+    const headers = data[0].map(h => String(h).toLowerCase());
+    const colIdx = {
+      uuid: 0,
+      folio: 2,
+      servicio: 5,
+      atiende: 7,
+      estado: headers.findIndex(h => h.includes('estado') || h.includes('estatus'))
+    };
 
-    // Mapeo de datos para el frontend
-    const solicitudes = values.slice(1).map(row => ({
-      uuid: row[colUUID],
-      folio: row[colFolio],
-      servicio: row[colServicio],
-      estado: colEstado !== -1 ? row[colEstado] : 'S01_RECEPCION',
-      atiende: row[colAtiende]
+    const solicitudes = data.slice(1).map(row => ({
+      uuid: row[colIdx.uuid],
+      folio: row[colIdx.folio],
+      servicio: row[colIdx.servicio],
+      estado: colIdx.estado !== -1 ? row[colIdx.estado] : 'S01_RECEPCION',
+      atiende: row[colIdx.atiende]
     }));
 
-    // Filtro básico: DSA ve todo por ahora, otros ven lo asignado
-    // (Ajustar según lógica de negocio real)
+    // Lógica de visibilidad: DSA ve todo lo pendiente, otros ven lo asignado
     if (user.role === 'DSA') {
-      return solicitudes.filter(s => s.estado !== 'FINALIZADO' && s.estado !== 'S99_RECHAZADO');
-    } else {
-      return solicitudes.filter(s => s.atiende === user.email);
+      return solicitudes.filter(s => !['FINALIZADO', 'S99_RECHAZADO'].includes(s.estado));
     }
+    
+    return solicitudes.filter(s => s.atiende === user.email);
 
   } catch (error) {
-    console.error('[ExpedienteService] Error en getSolicitudesPorUsuario:', error);
+    console.error('[ExpedienteService] getSolicitudesPorUsuario Error:', error);
     return [];
   }
 }
 
 /**
- * Obtiene el detalle completo de un folio para su gestión.
- * 
- * @param {string} uuid
- * @returns {Object} Detalle del folio.
+ * Obtiene detalle de un folio buscando eficientemente el archivo en Drive.
  */
 function getFolioDetails(uuid) {
   try {
     const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
     const sheet = ss.getSheetByName(SHEETS.BASE_DATOS);
-    const values = sheet.getDataRange().getValues();
+    const data = sheet.getDataRange().getValues();
     
-    const headers = values[0];
-    const row = values.find(r => r[0] === uuid);
+    const headers = data[0].map(h => String(h).toLowerCase());
+    const row = data.find(r => r[0] === uuid);
     if (!row) return null;
 
-    const colEstado = headers.findIndex(h => h.toString().toLowerCase() === 'estado_actual' || h.toString().toLowerCase() === 'estatus');
-    const colDrive = headers.findIndex(h => h.toString().toLowerCase().includes('drive') || h.toString().toLowerCase().includes('url'));
+    const colIdx = {
+      estado: headers.findIndex(h => h.includes('estado') || h.includes('estatus')),
+      url: headers.findIndex(h => h.includes('drive') || h.includes('url'))
+    };
 
-    const driveUrl = colDrive !== -1 ? row[colDrive] : row[8]; 
-    
-    // Obtener ID del archivo PDF de la carpeta
+    const driveUrl = colIdx.url !== -1 ? row[colIdx.url] : '';
     let pdfFileId = '';
     
-    try {
-      const folderId = driveUrl.split('/folders/')[1].split('?')[0];
-      const folder = DriveApp.getFolderById(folderId);
-      const files = folder.getFilesByType(MimeType.PDF);
-      
-      if (files.hasNext()) {
-        const file = files.next();
-        pdfFileId = file.getId();
+    if (driveUrl) {
+      try {
+        const folderId = driveUrl.match(/[-\w]{25,}/); // Regex robusto para IDs de Drive
+        if (folderId) {
+          const folder = DriveApp.getFolderById(folderId[0]);
+          const files = folder.getFilesByType(MimeType.PDF);
+          if (files.hasNext()) pdfFileId = files.next().getId();
+        }
+      } catch (e) {
+        console.warn(`[GetFolioDetails] I/O Drive Error para ${uuid}:`, e.message);
       }
-    } catch (e) {
-      console.warn('[GetFolioDetails] No se pudo obtener el PDF de Drive:', e);
     }
 
     return {
       uuid: row[0],
       folio: row[2],
       servicio: row[5],
-      estado: colEstado !== -1 ? row[colEstado] : 'S01_RECEPCION',
+      estado: colIdx.estado !== -1 ? row[colIdx.estado] : 'S01_RECEPCION',
       pdfFileId: pdfFileId,
-      // Mapeo adicional para el formulario inicial
       data: {
-        oficio_solicitud: row[6], // Referencia
-        tipo_tramite: row[3]      // Tipo
+        oficio_solicitud: row[6],
+        tipo_tramite: row[3]
       }
     };
 
   } catch (error) {
-    console.error('[ExpedienteService] Error en getFolioDetails:', error);
+    console.error('[ExpedienteService] getFolioDetails Error:', error);
     return null;
   }
 }
+
 
 
