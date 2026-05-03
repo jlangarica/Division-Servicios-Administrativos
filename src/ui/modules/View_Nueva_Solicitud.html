@@ -233,14 +233,10 @@
   /**
    * Callback del Google Picker.
    * Maneja las acciones PICKED (archivo seleccionado) y CANCEL.
-   *
-   * @param {Object} result Resultado del Picker.
-   * @param {Object} config Configuración { oauthToken, folderId }.
-   * @param {HTMLElement} btn Botón de submit para restaurar.
-   * @param {string} originalText HTML original del botón.
    */
-  async function handlePickerResult(data, config, btn, originalText) {
-    const action = data[google.picker.Response.ACTION];
+  async function handlePickerResult(pickerData, config, btn, originalText) {
+    const action = pickerData[google.picker.Response.ACTION];
+    console.log('[Picker] Callback recibido. Acción:', action);
 
     // Usuario canceló — desbloquear UI
     if (action === google.picker.Action.CANCEL) {
@@ -251,11 +247,14 @@
     }
 
     // No es un PICKED — ignorar otros eventos intermedios
-    if (action !== google.picker.Action.PICKED) return;
+    if (action !== google.picker.Action.PICKED) {
+      console.log('[Picker] Acción ignorada:', action);
+      return;
+    }
 
-    const doc = data[google.picker.Response.DOCUMENTS][0];
+    const doc = pickerData[google.picker.Response.DOCUMENTS][0];
     if (!doc) {
-      console.error('[Picker] No se detectaron documentos en la respuesta');
+      Toast.show('❌ Error: No se recibió información del archivo');
       return;
     }
 
@@ -264,33 +263,35 @@
     const fileName = doc[google.picker.Document.NAME] || doc.name;
 
     console.log('[Picker] Archivo detectado:', fileName, 'ID:', fileId);
+    Toast.show('📂 Archivo recibido: ' + fileName);
 
     if (!fileId) {
-      Toast.show('⚠️ Error: No se pudo obtener el ID del archivo');
+      Toast.show('⚠️ Error: ID de archivo nulo');
       btn.disabled = false;
       btn.innerHTML = originalText;
       document.body.classList.remove('is-syncing');
       return;
     }
 
-    // Renderizar preview vía Drive embed
+    // Renderizar preview
     const iframe = document.getElementById('pdf-iframe');
     iframe.src = 'https://drive.google.com/file/d/' + fileId + '/preview';
-    document.getElementById('pdf-empty-state').style.display = 'none';
+    const emptyState = document.getElementById('pdf-empty-state');
+    if (emptyState) emptyState.style.display = 'none';
     document.getElementById('pdf-viewer-container').style.display = 'flex';
 
-    // Sincronizar stepper con la selección real
+    // Iniciar Stepper
     btn.innerHTML = '🤖 Procesando...';
     startProcessStepper();
 
     try {
-      console.log('[OCR] Iniciando llamada RPC con fileId:', fileId);
-      const data = await AsyncRunner.run('processOcrEndpoint', fileId);
-
+      console.log('[OCR] Iniciando RPC con fileId:', fileId);
+      const ocrResult = await AsyncRunner.run('processOcrEndpoint', fileId);
 
       // Manejo de Respuesta
-      if (data && !data.error) {
+      if (ocrResult && !ocrResult.error) {
         completeProcessStepper(true);
+        Toast.show('✅ Análisis completado');
 
         const fill = (id, val, delay) => setTimeout(() => {
           const el = document.getElementById(id);
@@ -301,28 +302,27 @@
           }
         }, delay);
 
-        fill('intake-oficio', data.numero_oficio_solicitud, 200);
-        fill('intake-servicio', data.servicio_solicitante, 400);
-        fill('intake-fecha', data.fecha_sello_recepcion || data.fecha_elaboracion, 600);
+        fill('intake-oficio', ocrResult.numero_oficio_solicitud, 200);
+        fill('intake-servicio', ocrResult.servicio_solicitante, 400);
+        fill('intake-fecha', ocrResult.fecha_sello_recepcion || ocrResult.fecha_elaboracion, 600);
 
-        if (data.es_negativa) {
+        if (ocrResult.es_negativa) {
           setTimeout(() => {
             const chk = document.getElementById('intake-has-negativa');
             chk.checked = true;
             chk.dispatchEvent(new Event('change', { bubbles: true }));
-            fill('intake-fecha-negativa', data.fecha_hora_negativa?.split(' ')[0], 100);
+            fill('intake-fecha-negativa', ocrResult.fecha_hora_negativa?.split(' ')[0], 100);
           }, 800);
         }
 
-        _ocrExtractedItems = data.items || [];
-        Toast.show('✨ Documento procesado correctamente');
+        _ocrExtractedItems = ocrResult.items || [];
       } else {
-        throw new Error(data?.error || 'Error desconocido del servidor');
+        throw new Error(ocrResult?.error || 'Respuesta inválida del servidor');
       }
     } catch (err) {
       console.error('OCR Error:', err);
       completeProcessStepper(false);
-      Toast.show('⚠️ Error en la IA: ' + err.message);
+      Toast.show('❌ Error en la IA: ' + err.message);
     } finally {
       btn.disabled = false;
       btn.innerHTML = originalText;
