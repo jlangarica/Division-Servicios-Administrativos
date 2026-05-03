@@ -151,8 +151,7 @@ function navigateMenu(event, viewPath) {
   const titleMap = {
     'ui/modules/View_Dashboard': 'Inicio',
     'ui/modules/View_Solicitudes': 'Solicitudes',
-    'ui/modules/View_Expedientes': 'Expedientes',
-    'ui/modules/View_Catalogos': 'Catálogos'
+    'ui/modules/View_Expedientes': 'Expedientes'
   };
   const breadcrumbs = document.getElementById('app-breadcrumbs');
   if (breadcrumbs) breadcrumbs.textContent = titleMap[viewPath] || 'Módulo';
