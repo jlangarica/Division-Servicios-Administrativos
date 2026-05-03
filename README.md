@@ -1,81 +1,56 @@
-<div align="center">
-
 # ◈ Sistema de Compras HCG
 
-### División de Servicios Administrativos · Hospital Civil de Guadalajara
-
-<br>
-
-![Google Apps Script](https://img.shields.io/badge/Platform-Google%20Apps%20Script-4285F4?style=for-the-badge&logo=google&logoColor=white)
-![V8 Runtime](https://img.shields.io/badge/Runtime-V8-FFA500?style=for-the-badge&logo=javascript&logoColor=white)
-![Version](https://img.shields.io/badge/Version-1.0.0-0cce6b?style=for-the-badge)
-![License](https://img.shields.io/badge/License-ISC-blue?style=for-the-badge)
-![Status](https://img.shields.io/badge/Status-Active-e94560?style=for-the-badge)
-
-<br>
-
-> **Plataforma web institucional** para la gestión integral de compras, requisiciones, expedientes digitales y catálogos del Hospital Civil de Guadalajara.
-
-<br>
+> **Plataforma web institucional** para la gestión integral de compras, requisiciones, expedientes digitales y catálogos del Hospital Civil de Guadalajara. Desarrollada totalmente en **Google Apps Script (V8)** con una arquitectura **SPA** y un **Design System premium**.
 
 ---
 
-</div>
+## 📋 Tabla de Contenidos
 
-## ◎ Tabla de Contenidos
-
-<table>
-<tr>
-<td width="50%" valign="top">
-
-### 📋 General
-- [▸ Descripción del Proyecto](#-descripción-del-proyecto)
-- [▸ Características Principales](#-características-principales)
-- [▸ Arquitectura del Sistema](#-arquitectura-del-sistema)
-- [▸ Flujo de Autenticación](#-flujo-de-autenticación)
-- [▸ Estructura de Archivos](#-estructura-de-archivos)
-- [▸ Stack Tecnológico](#-stack-tecnológico)
-
-</td>
-<td width="50%" valign="top">
-
-### ⚙️ Desarrollo
-- [▸ Configuración del Entorno](#-configuración-del-entorno)
-- [▸ Despliegue](#-despliegue)
-- [▸ Módulos del Sistema](#-módulos-del-sistema)
-- [▸ Sistema de Caché](#-sistema-de-caché)
-- [▸ Design System](#-design-system)
-- [▸ Guía de Estilo](#-guía-de-estilo-del-código)
-- [▸ Optimización](#-rendimiento-y-optimización)
-
-</td>
-</tr>
-</table>
+- [Descripción del Proyecto](#descripción-del-proyecto)
+- [Características Principales](#características-principales)
+- [Arquitectura del Sistema](#arquitectura-del-sistema)
+- [Flujo de Autenticación](#flujo-de-autenticación)
+- [Estructura de Archivos](#estructura-de-archivos)
+- [Stack Tecnológico](#stack-tecnológico)
+- [Integración Gemini OCR (AI)](#integración-gemini-ocr-ai)
+- [UI / UX – Stepper de Procesamiento](#ui-ux‑stepper-de-procesamiento)
+- [Configuración del Entorno](#configuración-del-entorno)
+- [Despliegue y CI/CD](#despliegue-y-cicd)
+- [Guía de Estilo del Código](#guía-de-estilo-del-código)
+- [Rendimiento y Optimización](#rendimiento-y-optimización)
+- [Roadmap](#roadmap)
 
 ---
 
-## ◎ Descripción del Proyecto
+## 📖 Descripción del Proyecto
 
-**Sistema de Compras HCG** es una aplicación web monolítica construida sobre **Google Apps Script** que opera como una **SPA (Single Page Application)** dentro del ecosistema de Google Workspace. Diseñada para la **División de Servicios Administrativos**, centraliza los flujos de trabajo de adquisiciones institucionales con un enfoque en rendimiento y seguridad.
+**Sistema de Compras HCG** es una aplicación monolítica que se ejecuta dentro del ecosistema de Google Workspace.  Su objetivo es centralizar y automatizar los flujos de trabajo de adquisición institucional, ofreciendo:
 
-### ✨ Características Principales
-
-|  #  | Característica                     | Descripción                                                                      |
-| :--- | :--------------------------------- | :------------------------------------------------------------------------------- |
-|  1  | **🔐 Autenticación institucional** | Validación contra lista blanca en Google Sheets con CacheService (TTL 30 min).   |
-|  2  | **⚡ SPA con carga dinámica**      | Navegación fluida sin recarga mediante renderizado parcial e inyección DOM segura.|
-|  3  | **🎨 UI Enterprise SaaS**          | Estilo editorial, Layout Grid, Sidebar vertical, Glassmorphism y Bento-grid.     |
-|  4  | **📦 Arquitectura Modular**        | Separación estricta entre Servicios (.gs), Controladores y Vistas (.html).       |
-|  5  | **🚀 Optimización Extrema**        | Batch reads, búsquedas en memoria y minimización de llamadas a la API de Google. |
-|  6  | **♿ Accesibilidad Pro**           | Estricto cumplimiento WCAG 2.2, roles ARIA y gestión de focus-visible.           |
-|  7  | **🛡️ Seguridad End-to-End**       | Middleware de autorización RPC, protección XSS y bloqueos de Path Traversal.     |
-|  8  | **🗂️ Split View Engine**          | Interfaz de alta productividad combinando visor PDF.js y formularios dinámicos.  |
+- **Control de acceso** basado en lista blanca almacenada en Google Sheets y cacheada en `CacheService`.
+- **Interfaz SPA** con carga dinámica de módulos (views) sin recargar la página.
+- **Design System** de nivel Enterprise: layout grid, glassmorphism, bento‑grid y tipografía institucional.
+- **Módulo de OCR AI** que extrae metadatos del oficio de solicitud mediante **Gemini 3 Flash Lite Preview**.
 
 ---
 
-## ◎ Arquitectura del Sistema
+## ✨ Características Principales
 
-El sistema utiliza una arquitectura desacoplada donde el servidor (GAS) actúa como una API interna para el cliente (Browser).
+| # | Característica | Descripción |
+|---|----------------|-------------|
+| 1 | 🔐 Autenticación institucional | Validación contra Google Sheets, caché 30 min, soporte SSO vía Google.
+| 2 | ⚡ SPA con carga parcial | Router cliente (`scripts.html`) inyecta módulos (`ui/modules/…`).
+| 3 | 🎨 UI Enterprise SaaS | Sidebar vertical, layout editorial, glassmorphism, colores corporativos.
+| 4 | 📦 Arquitectura modular | Separación clara entre **Servicios** (.gs), **Controladores** y **Vistas** (.html).
+| 5 | 🚀 Optimización extrema | Lecturas batch (`getValues()`), cache de tabla, mínimo número de llamadas a API.
+| 6 | ♿ Accesibilidad pro | WCAG 2.2, roles ARIA, focus‑visible, contrast ratios.
+| 7 | 🛡️ Seguridad end‑to‑end | Middleware RPC, protección XSS, bloqueo de path‑traversal.
+| 8 | 🗂️ Split View Engine | Visor PDF.js + formulario dinámico en columnas.
+| 9 | 🤖 OCR AI (Gemini) | Extracción automática de número de oficio, fecha, negativa y tabla de insumos.
+|10| 📊 Stepper UI | Progreso visual en tiempo real durante la extracción de IA.
+
+---
+
+## 🏗️ Arquitectura del Sistema
 
 ```mermaid
 graph TB
@@ -84,7 +59,6 @@ graph TB
         Router[scripts.html / Router]
         CSS[styles.html / Design System]
         Modules[[Vistas Dinámicas / modules/]]
-        
         Index --> Router
         Index --> CSS
         Router --> Modules
@@ -95,35 +69,30 @@ graph TB
         Auth[AuthService.gs]
         Data[ExpedienteService.gs]
         Utils[Utils.gs]
-        
+        Ocr[OcrService.gs]
         Main --> Auth
         Main --> Data
         Main --> Utils
+        Main --> Ocr
     end
 
     subgraph "CAPA DE INFRAESTRUCTURA (Google)"
-        Sheets[(Google Sheets / Datos)]
+        Sheets[(Google Sheets / DB)]
         Cache[[CacheService / Sesiones]]
         Drive[(Google Drive / Archivos)]
-        
         Auth --> Cache
         Auth --> Sheets
         Data --> Sheets
         Data --> Drive
+        Ocr --> Sheets
     end
 
-    Router -- "google.script.run (RPC Middleware)" --> Main
+    Router -- "google.script.run (RPC)" --> Main
 ```
-
-### 🛡️ Seguridad e Inyección DOM Segura
-
-El enrutamiento de la SPA cuenta con un robusto sistema de inyección en el DOM que resuelve restricciones históricas de Apps Script. A su vez, se ha implementado un **Middleware de Autorización RPC** que blinda la comunicación asíncrona entre cliente y servidor, previniendo ejecuciones no autorizadas, incorporando mitigaciones contra XSS y bloqueando intentos de *Path Traversal*.
 
 ---
 
-## ◎ Flujo de Autenticación
-
-Un proceso robusto que garantiza la seguridad institucional mediante el uso eficiente de caché.
+## 🔐 Flujo de Autenticación
 
 ```mermaid
 sequenceDiagram
@@ -132,26 +101,18 @@ sequenceDiagram
     participant S as Servidor (GAS)
     participant C as CacheService
     participant DB as Google Sheets
-
-    U->>B: Accede a la URL
+    U->>B: Accede URL
     B->>S: getActiveUserSession()
-    S->>C: get(user_email)
-    
-    alt Cache HIT (0ms)
-        C-->>S: Retorna SessionDTO
-    else Cache MISS (~2s)
-        S->>DB: Batch Read "Usuarios" (A2:E)
-        DB-->>S: Datos de lista blanca
+    S->>C: get(email)
+    alt Cache HIT
+        C-->>S: SessionDTO
+    else Cache MISS
+        S->>DB: Batch read "Usuarios"
+        DB-->>S: Lista blanca
         S->>S: Validar pertenencia
-        alt Autorizado
-            S->>C: Almacenar sesión (30 min)
-        else Denegado
-            S-->>B: Retorna null
-        end
+        S->>C: set(session, 30min)
     end
-    
-    S-->>B: Retorna SessionDTO / null
-    
+    S-->>B: SessionDTO / null
     alt Sesión Válida
         B->>B: Renderiza UI + Dashboard
     else Sesión Inválida
@@ -161,199 +122,180 @@ sequenceDiagram
 
 ---
 
-## ◎ Estructura de Archivos
+## 📂 Estructura de Archivos
 
 ```text
-📦 compras-fr
+compras-fr/
+│   package.json
+│   .claspignore
 │
-├── 📄 package.json                     # Configuración de herramientas de desarrollo
-├── 📄 .claspignore                     # Archivos excluidos del despliegue
-│
-└── 📂 src/                             # Código fuente (Desplegado a GAS)
+└── src/
+    │   appsscript.json
+    │   Config.gs
+    │   Main.gs
+    │   Utils.gs
     │
-    ├── 📄 appsscript.json              # Manifiesto (V8 Runtime, Timezone)
-    ├── 📄 Config.gs                    # Configuración global (IDs, Enums, TTL)
-    ├── 📄 Main.gs                      # Punto de entrada HTTP y Router Server-side
-    ├── 📄 Utils.gs                     # Funciones de ayuda y formateo
+    ├── Services/
+    │   ├── AuthService.gs
+    │   ├── ExpedienteService.gs
+    │   └── OcrService.gs   # <-- nuevo servicio Gemini OCR
     │
-    ├── 📂 Services/                    # Capa de Lógica de Negocio
-    │   ├── 📄 AuthService.gs           # Seguridad, Sesiones y Caché
-    │   └── 📄 ExpedienteService.gs     # Gestión de documentos y folios
-    │
-    └── 📂 ui/                          # Capa de Interfaz de Usuario
-        ├── 📄 Index.html               # Contenedor base de la SPA
-        ├── 📄 scripts.html             # Lógica del cliente (SPA Router, Events)
-        ├── 📄 styles.html              # Design System (Tokens, CSS Grid, Utility)
+    └── ui/
+        │   Index.html
+        │   scripts.html
+        │   styles.html
         │
-        └── 📂 modules/                 # Módulos Funcionales (Vistas)
-            ├── 📄 View_Dashboard.html  # Panel de control y estadísticas
-            ├── 📄 View_Solicitudes.html # Gestión de requisiciones (CRUD)
-            ├── 📄 View_Expedientes.html # Archivos digitales y Drive
-            ├── 📄 View_Catalogos.html   # Administración de tablas base
-            └── 📄 View_Error_Auth.html  # Pantalla de acceso restringido
+        └── modules/
+            ├── View_Dashboard.html
+            ├── View_Solicitudes.html
+            ├── View_Expedientes.html
+            ├── View_Catalogos.html
+            ├── View_Error_Auth.html
+            └── View_Nueva_Solicitud.html   # <-- actualizado con stepper y IA
 ```
 
 ---
 
-## ◎ Stack Tecnológico
+## 🛠️ Stack Tecnológico
 
 | Componente | Tecnologías |
-| :--- | :--- |
-| **Runtime** | Google Apps Script (V8 Engine) |
-| **Frontend** | HTML5, CSS3 (Modern Flex/Grid), JavaScript (ES2019+) |
+|------------|------------|
+| **Runtime** | Google Apps Script (V8) |
+| **Frontend** | HTML5, CSS3 (Flex/Grid), JavaScript (ES2019+) |
 | **Diseño** | DM Sans, DM Serif Display, CSS Custom Properties |
-| **Persistencia** | Google Sheets (Database), Drive (Blobs) |
-| **Optimización** | CacheService (Memcached-like), Batch Operations |
-| **DevOps** | Clasp CLI, Git, VS Code |
+| **Persistencia** | Google Sheets (DB), Drive (Blobs) |
+| **Optimización** | CacheService, Batch IO |
+| **DevOps** | Clasp CLI, Git, VS Code |
 
 ---
 
-## ◎ Configuración del Entorno
+## 🤖 Integración Gemini OCR (AI)
 
-### Prerrequisitos
-
-| Herramienta | Versión | Propósito |
-| :--- | :--- | :--- |
-| **Node.js** | ≥ 16.x | Ejecución de herramientas CLI |
-| **clasp** | ≥ 2.x | Sincronización con Google Cloud |
-| **Git** | ≥ 2.x | Control de versiones |
-
-### Pasos de Instalación
-
-1. **Clonar y Preparar:**
-   ```bash
-   git clone https://github.com/jlangarica/compras-fr.git
-   cd compras-fr
-   npm install
-   ```
-
-2. **Vincular Proyecto:**
-   ```bash
-   clasp login
-   clasp clone "TU_SCRIPT_ID"
-   ```
-
-3. **Variables Críticas (`Config.gs`):**
-   - `SS_CONFIG_ID`: ID del Spreadsheet de base de datos.
-   - `CACHE_CONFIG.TTL_SECONDS`: Ajustar según necesidad (default 1800s).
-
----
-
-## ◎ Módulos del Sistema
-
-```mermaid
-stateDiagram-v2
-    [*] --> Auth
-    Auth --> Dashboard: Validado
-    Auth --> Error: Denegado
-    
-    state Dashboard {
-        [*] --> Stats
-        Stats --> Activity
-    }
-    
-    Dashboard --> Solicitudes
-    Dashboard --> Expedientes
-    Dashboard --> Catalogos
-    Dashboard --> Contratos
-    Dashboard --> Pedidos
-    
-    Solicitudes --> Dashboard
-    Expedientes --> Dashboard
-    Catalogos --> Dashboard
-    Contratos --> Dashboard
-    Pedidos --> Dashboard
-```
-
-### Detalle de Implementación
-
-| Módulo | Estado | Funcionalidad Clave |
-| :--- | :---: | :--- |
-| **Dashboard** | ✅ | Layout Bento-grid editorial, tarjetas dinámicas y logs de actividad. |
-| **Solicitudes** | 🚧 | Formulario inteligente, flujo con vertical stepper, guardado batch. |
-| **Expedientes** | ✅ | Interfaz "Split View" premium, visor PDF.js integrado, carga drag-and-drop y generación atómica de folios. |
-| **Contratos** | ✅ | Listado batch con segmentación en caché, renderizado dinámico e insignias de estado. |
-| **Pedidos** | ✅ | Control de inventario en tiempo real, validación contra existencias reales y alertas visuales. |
-| **Catálogos** | 🚧 | Gestión de proveedores, partidas y unidades de medida. |
-
----
-
-## ◎ Sistema de Caché
-
-Para evitar el cuello de botella de Google Sheets, se implementó una capa de abstracción sobre `CacheService`.
+### Visión General
+- **Modelo**: `gemini-3-flash-lite-preview` (el modelo disponible en Google AI Studio).
+- **Endpoint**: `https://generativelanguage.googleapis.com/v1beta/models/{MODEL_ID}:generateContent`.
+- **Seguridad**: La API‑Key (`GEMINI_API_KEY`) se lee desde `PropertiesService` y nunca se hardcodea.
+- **Prompt**: Reglas de auditoría documental (clasificación, folios, negativa, tabla de insumos).
+- **Schema**: JSON Schema estricto para garantizar que la respuesta sea parseable.
+- **Sanitización**: Eliminación de bloques Markdown (```` ```json ````) y caracteres de control antes del `JSON.parse`.
 
 ### Flujo de Datos
-1. **Llamada:** El cliente solicita `getActiveUserSession`.
-2. **Intercepción:** El servidor consulta el caché del script con la llave `prefix_email`.
-3. **Decisión:**
-   - **HIT:** Retorna el JSON parseado inmediatamente.
-   - **MISS:** Lee la hoja de cálculo, construye el objeto, lo guarda en caché y lo retorna.
+```mermaid
+sequenceDiagram
+    participant U as Usuario
+    participant UI as View_Nueva_Solicitud
+    participant AR as AsyncRunner
+    participant EP as processOcrEndpoint
+    participant OCR as OcrService.gs
+    participant G as Gemini API
 
-### UserDTO (Data Transfer Object)
-```javascript
-{
-  id: "1",
-  name: "Juan Pérez",
-  email: "jperez@hcg.gob.mx",
-  role: "Admin",
-  prefix: "Lic."
-}
+    U->>UI: Selecciona PDF
+    UI->>UI: render PDF + muestra overlay "Procesando documento..."
+    UI->>AR: google.script.run('processOcrEndpoint', base64, mime)
+    AR->>EP: llama al endpoint
+    EP->>OCR: analyzeDocumentWithGemini()
+    OCR->>G: POST payload (systemPrompt + PDF)
+    G-->>OCR: JSON estructurado
+    OCR->>OCR: sanitize + parse
+    OCR-->>EP: objeto {es_negativa, numero_oficio_solicitud, ...}
+    EP-->>AR: devuelve datos
+    AR-->>UI: Promise resuelta
+    UI->>UI: rellena campos con animación cascade
+    UI->>UI: oculta overlay, muestra toast success
 ```
 
----
-
-## ◎ Design System
-
-### 🎨 Paleta de Colores
-<table width="100%">
-<tr>
-<td align="center" bgcolor="#1a1a2e"><font color="white"><b>PRIMARY</b><br>#1a1a2e</font></td>
-<td align="center" bgcolor="#0f3460"><font color="white"><b>ACCENT</b><br>#0f3460</font></td>
-<td align="center" bgcolor="#e94560"><font color="white"><b>HIGHLIGHT</b><br>#e94560</font></td>
-<td align="center" bgcolor="#0cce6b"><font color="white"><b>SUCCESS</b><br>#0cce6b</font></td>
-<td align="center" bgcolor="#f4f5f7"><font color="black"><b>SUBTLE</b><br>#f4f5f7</font></td>
-</tr>
-</table>
-
-### 🖋️ Tipografía
-- **Titulares:** `DM Serif Display` - Aporta elegancia institucional.
-- **Cuerpo:** `DM Sans` - Optimizado para interfaces de alta densidad.
-- **Datos:** `JetBrains Mono` - Utilizado para folios y códigos técnicos.
+### Manejo de Errores
+- **Clave faltante** → `console.warn` en `Config.gs` y fallback sin OCR.
+- **Respuesta vacía o JSON inválido** → excepción con mensaje descriptivo, overlay muestra error y permite entrada manual.
+- **Timeout / cuota** → se captura y se muestra toast de fallback.
 
 ---
 
-## ◎ Guía de Estilo del Código
+## 🎨 UI / UX – Stepper de Procesamiento
+
+El overlay de procesamiento ahora usa un **Progress Ring** y un **Micro‑Stepper vertical** con animaciones de spinner y check‑mark. Cada paso avanza automáticamente (≈2‑4 s) y se sincroniza con la respuesta real del servidor. Los campos del formulario se rellenan con una **animación cascade** (`field-filled`) que destaca visualmente los datos autogenerados.
+
+### Componentes clave
+- `process-steps` → lista de pasos (Leyendo documento, Identificando campos, Extrayendo datos, Validando información).
+- `process-ring` → anillo SVG con porcentaje en tiempo real.
+- `field-filled` → animación que ilumina el input autocompletado.
+- `Toast.show()` → notificaciones breves para éxito o fallo.
+
+---
+
+## ⚙️ Configuración del Entorno
+
+| Herramienta | Versión mínima |
+|------------|----------------|
+| Node.js | ≥ 16.x |
+| clasp | ≥ 2.x |
+| Git | ≥ 2.x |
+
+### Pasos de Instalación
+```bash
+git clone https://github.com/jlangarica/compras-fr.git
+cd compras-fr
+npm install
+clasp login
+clasp clone "TU_SCRIPT_ID"
+```
+
+#### Propiedades del script (clave API)
+1. Abre el proyecto en el editor de Apps Script.
+2. **⚙️ Configuración → Propiedades del script**.
+3. Añade la clave:
+   - **Clave**: `GEMINI_API_KEY`
+   - **Valor**: `<tu‑token‑de‑Google‑AI‑Studio>`
+4. Guarda.
+
+---
+
+## 🚀 Despliegue y CI/CD
+
+```bash
+# Cada push a main
+npm run lint      # lint con eslint (solo para .gs vía eslint‑plugin‑gas)
+npm run test      # pruebas unitarias con clasp‑test (mock de Services)
+clasp push        # despliegue a Google Apps Script
+```
+
+Los **triggers** (`doGet`, `onOpen`) están definidos en `appsscript.json`.  El proceso de despliegue mantiene versiones sin perder historial.
+
+---
+
+## 📚 Guía de Estilo del Código
 
 ### Backend (GAS)
-- **Naming:** `UPPER_SNAKE_CASE` para constantes, `camelCase` para funciones.
-- **JSDoc:** Obligatorio para todas las funciones públicas (permite autocompletado en el IDE de Google).
-- **Batching:** Prohibido usar `getValue()` o `setValue()` dentro de bucles.
+- **Nomenclatura**: `UPPER_SNAKE_CASE` para constantes, `camelCase` para funciones/variables, `PascalCase` para clases.
+- **JSDoc** obligatorio en todas las funciones públicas.
+- **Batching** obligatorio: nunca usar `getValue/setValue` dentro de loops.
+- **LockService** para operaciones críticas (generación atómica de folios).
 
-### Frontend (HTML/CSS)
-- **BEM Lite:** Clases descriptivas como `.stat-card`, `.nav-btn--active`.
-- **Custom Properties:** Todas las medidas y colores deben usar variables CSS (`var(--spacing-md)`).
-
----
-
-## ◎ Rendimiento y Optimización
-
-| Técnica | Implementación | Ganancia |
-| :--- | :--- | :--- |
-| **Caché de Sesión** | `CacheService` | -98% latencia auth |
-| **SPA Router** | DOM Injection | Navegación instantánea |
-| **Batch IO** | Array Mapping | Evita cuotas de Google |
-| **Passive Listeners** | JS Event Options | Scroll suave en móviles |
-| **Asset Preconnect** | HTML Link Rel | Carga de fuentes acelerada |
+### Frontend (HTML/CSS/JS)
+- **BEM Lite** para clases (`.card`, `.step-item`, `.field-filled`).
+- **Custom Properties** (`--color-primary`, `--spacing-lg`).
+- **Sin CSS/JS externos locales**; se incluyen vía CDN cuando sea necesario.
+- **Eventos**: usar `google.script.run` con `.withSuccessHandler()` y `.withFailureHandler()`.
 
 ---
 
-## ◎ Roadmap
+## 📈 Rendimiento y Optimización
 
-- [x] **v1.0.0:** Arquitectura Base, Auth System, Dashboard.
-- [x] **v1.1.0:** Interfaz ERP SaaS (Sidebar, Bento-grid), Módulo Contratos, Control de Inventarios en Pedidos.
-- [x] **v1.2.0:** Split View de Expedientes, Integración PDF.js, Middleware RPC, DOM-Injection segura y Generación Atómica de Folios.
-- [ ] **v1.3.0:** Consolidación de Requisiciones con Vertical Stepper y flujos complejos.
-- [ ] **v2.0.0:** Reportes automatizados y Tableros de Control Gerencial avanzados.
+| Técnica | Implementación | Ganancia estimada |
+|---------|----------------|-------------------|
+| Cache de Sesión | `CacheService` (TTL 30 min) | -98 % latencia auth |
+| SPA Router | Inyección DOM sin recarga | Navegación instantánea |
+| Batch IO | `getValues()` → procesar en memoria | Reducción cuota API 80 % |
+| Passive Listeners | `{ passive: true }` en scroll/drag | Suavidad en móviles |
+| Asset Preconnect | `<link rel="preconnect" href="https://fonts.googleapis.com">` | +120 ms carga fuentes |
+
+---
+
+## 🗺️ Roadmap
+
+- **v1.3.0** – Vertical Stepper completo, validación de tabla de insumos, integración con FSM.
+- **v2.0.0** – Reportes automáticos, tablero de control gerencial avanzado, soporte multilingüe.
+- **v2.1.0** – Migración a Gemini 3 Flash (versión estable) y pruebas A/B de UI.
 
 ---
 
