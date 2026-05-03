@@ -417,64 +417,73 @@ async function loadSolicitudesActivas() {
  * Navega a la vista de gestión para un folio específico.
  */
 async function manageFolio(uuid, folio, servicio, estado) {
-  // Cambiar vista
-  renderView('ui/modules/View_Gestion_Folio');
+  document.body.classList.add('is-syncing');
   
-  // Esperar a que el DOM esté listo
-  setTimeout(async () => {
-    document.getElementById('folio-display').textContent = folio;
-    document.getElementById('servicio-display').textContent = servicio;
-    const badge = document.getElementById('estado-badge');
-    badge.textContent = estado.replace('S', 'Fase ');
-    badge.className = `status-tag status-${estado}`;
+  try {
+    // Cambiar vista
+    renderView('ui/modules/View_Gestion_Folio');
+    
+    // Cargar detalles desde el servidor
+    const details = await AsyncRunner.run('getFolioDetails', uuid);
+    if (!details) throw new Error('No se pudo obtener el detalle del folio');
 
-    // Cargar PDF y Acciones en paralelo
-    try {
-      const details = await AsyncRunner.run('getFolioDetails', uuid);
-      if (details && details.pdfBase64) {
-        const typedarray = new Uint8Array(atob(details.pdfBase64).split('').map(c => c.charCodeAt(0)));
-        renderPDF(typedarray);
+    // Esperar a que el DOM esté listo (después de renderView)
+    setTimeout(async () => {
+      document.getElementById('folio-display').textContent = details.folio;
+      document.getElementById('servicio-display').textContent = details.servicio;
+      const badge = document.getElementById('estado-badge');
+      badge.textContent = details.estado.replace('S', 'Fase ');
+      badge.className = `status-tag status-${details.estado}`;
+
+      // 1. Inyectar Visor Drive (Iframe)
+      if (details.pdfFileId) {
+        const iframe = `<iframe src="https://drive.google.com/file/d/${details.pdfFileId}/preview" 
+                                width="100%" height="100%" style="border:none;" 
+                                allow="autoplay"></iframe>`;
+        document.getElementById('pdf-container').innerHTML = iframe;
+      } else {
+        document.getElementById('pdf-container').innerHTML = '<div style="padding:40px; text-align:center; color:var(--color-neutral-400);">No se encontró archivo PDF en Drive</div>';
       }
       
-      renderGestionPanel(uuid, estado);
-    } catch (err) {
-      console.error('[Gestion] Error:', err);
-      Toast.show('Error al cargar detalles del folio');
-    }
-  }, 300);
+      // 2. Renderizar Panel de Campos (Partials)
+      await renderGestionPanel(uuid, details.estado, details.data);
+      
+      document.body.classList.remove('is-syncing');
+    }, 400);
+
+  } catch (err) {
+    console.error('[Gestion] Error:', err);
+    Toast.show('Error al cargar la gestión del folio');
+    document.body.classList.remove('is-syncing');
+  }
 }
 
 /**
- * Renderiza dinámicamente el panel de campos y botones de acción.
+ * Renderiza dinámicamente el panel de campos usando Partials Server-Side.
  */
-async function renderGestionPanel(uuid, estado) {
+async function renderGestionPanel(uuid, estado, formData) {
   const fieldsContainer = document.getElementById('dynamic-fields-container');
   const actionBar = document.getElementById('action-bar');
   if (!fieldsContainer || !actionBar) return;
 
-  // 1. Renderizar campos según estado
-  let fieldsHTML = '';
-  if (estado === 'S01_RECEPCION') {
-    fieldsHTML = `
-      <div class="glass-input-group">
-        <label class="glass-input-label">Actualizar Oficio</label>
-        <p style="font-size:12px; color:var(--color-neutral-500);">Usa el panel de la izquierda para verificar el documento cargado.</p>
-      </div>
-    `;
-  } else if (estado === 'S08_PROVEEDOR_COTIZA') {
-    fieldsHTML = `
-      <div class="glass-input-group">
-        <label class="glass-input-label">Cargar Cotización</label>
-        <input type="file" id="input-cotizacion" class="glass-input" accept=".pdf">
-      </div>
-      <div class="glass-input-group">
-        <label class="glass-input-label">Importe de Cotización</label>
-        <input type="number" id="input-importe" class="glass-input" placeholder="0.00">
-      </div>
-    `;
-  }
+  // 1. Cargar el Partial correspondiente desde el servidor
+  try {
+    const partialPath = `ui/modules/partials/Form_${estado}`;
+    const partialHTML = await AsyncRunner.run('include', partialPath);
+    fieldsContainer.innerHTML = partialHTML;
 
-  fieldsContainer.innerHTML = fieldsHTML;
+    // Poblar datos si el partial tiene campos con name coincidente
+    const form = document.getElementById('active-step-form');
+    if (form && formData) {
+      Object.keys(formData).forEach(key => {
+        const field = form.querySelector(`[name="${key}"]`);
+        if (field) field.value = formData[key];
+      });
+    }
+  } catch (err) {
+    console.warn(`[Partials] No se encontró partial para el estado ${estado}, usando fallback.`);
+    fieldsContainer.innerHTML = '<p style="font-size:12px; color:var(--color-neutral-400);">Esta fase no requiere captura de datos adicionales.</p>';
+  }
 
   // 2. Cargar acciones desde el Motor FSM
   try {
@@ -490,114 +499,67 @@ async function renderGestionPanel(uuid, estado) {
     }).join('');
 
     if (actions.length === 0) {
-      actionBar.innerHTML = '<p style="font-size:12px; color:var(--color-neutral-500); text-align:center; width:100%;">No tienes acciones permitidas en esta fase.</p>';
+      actionBar.innerHTML = '<p style="font-size:12px; color:var(--color-neutral-500); text-align:center; width:100%;">No tienes permisos para actuar en este estado.</p>';
     }
-
   } catch (err) {
     console.error('[FSM] Error al obtener acciones:', err);
   }
 }
 
 /**
- * Despacha un evento al motor de Workflow.
+ * Serializa nativamente el formulario activo.
+ * Flujo unidireccional sin selectores manuales.
+ */
+function buildTransitionPayload() {
+  const formElement = document.getElementById('active-step-form');
+  if (!formElement) return {};
+  
+  // Serialización nativa via FormData (requiere atributo 'name')
+  return Object.fromEntries(new FormData(formElement));
+}
+
+/**
+ * Despacha un evento al motor de Workflow con bloqueo de UI.
  */
 async function handleWorkflowAction(uuid, event) {
+  const data = buildTransitionPayload();
   const payload = {
-    reason: '',
-    data: {} // Aquí se capturarían datos de los inputs dinámicos
+    data: data,
+    reason: ''
   };
 
-  // Ejemplo: si requiere razón en REJECT
+  // Validación de rechazo
   if (event === 'REJECT') {
-    const reason = prompt('Indique el motivo del rechazo:');
+    const reason = prompt('Indique el motivo del rechazo (obligatorio):');
     if (!reason) return;
     payload.reason = reason;
   }
 
-  Toast.show('Procesando transición...');
+  // Bloqueo de UI
+  document.body.classList.add('is-syncing');
+  Toast.show('Procesando transacción institucional...');
   
   try {
     const res = await AsyncRunner.run('dispatchWorkflowEventEndpoint', uuid, event, payload);
     
     if (res.success) {
-      Toast.show('¡Transición exitosa! Nuevo estado: ' + res.newState);
-      navigateMenu(null, 'ui/modules/View_Solicitudes'); // Volver al Kanban
+      Toast.show('¡Transición exitosa! Folio actualizado.');
+      // Destrucción y reconstrucción de la UI (Volver al Kanban)
+      navigateMenu(null, 'ui/modules/View_Solicitudes');
     } else {
       Toast.show('Error: ' + res.error);
     }
   } catch (err) {
-    Toast.show('Fallo crítico en el servidor');
+    console.error('[FSM] Fallo crítico:', err);
+    Toast.show('Fallo de red al procesar la transición');
+  } finally {
+    document.body.classList.remove('is-syncing');
   }
 }
 
-/* --- LOGIC: Visor PDF (Legacy modificado) --- */
-let pdfDoc = null;
-let pageNum = 1;
-let currentZoom = 1.0;
-let pageRendering = false;
-let pageNumPending = null;
-
-function handleFileSelect(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const typedarray = new Uint8Array(e.target.result);
-    renderPDF(typedarray);
-  };
-  reader.readAsArrayBuffer(file);
-}
-
+/* --- LOGIC: Visor Drive Preview --- */
 function renderPDF(data) {
-  if (typeof pdfjsLib === 'undefined') return;
-  
-  pdfjsLib.getDocument(data).promise.then(function(pdf) {
-    pdfDoc = pdf;
-    const pageCountEl = document.getElementById('page-count');
-    if (pageCountEl) pageCountEl.textContent = pdf.numPages;
-    const toolbar = document.getElementById('pdf-toolbar');
-    if (toolbar) toolbar.style.display = 'flex';
-    const canvas = document.getElementById('pdf-canvas');
-    if (canvas) canvas.style.display = 'block';
-    
-    pageNum = 1;
-    queueRenderPage(pageNum);
-  });
-}
-
-function renderPage(num) {
-  pageRendering = true;
-  pdfDoc.getPage(num).then(function(page) {
-    const canvas = document.getElementById('pdf-canvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const viewport = page.getViewport({scale: currentZoom});
-    canvas.height = viewport.height;
-    canvas.width = viewport.width;
-    
-    const renderContext = { canvasContext: ctx, viewport: viewport };
-    page.render(renderContext).promise.then(function() {
-      pageRendering = false;
-      if (pageNumPending !== null) { renderPage(pageNumPending); pageNumPending = null; }
-    });
-    const pageNumEl = document.getElementById('page-num');
-    if (pageNumEl) pageNumEl.textContent = num;
-  });
-}
-
-function queueRenderPage(num) {
-  if (pageRendering) pageNumPending = num;
-  else renderPage(num);
-}
-
-function changePage(offset) {
-  if (!pdfDoc) return;
-  const newPage = pageNum + offset;
-  if (newPage >= 1 && newPage <= pdfDoc.numPages) {
-    pageNum = newPage;
-    queueRenderPage(pageNum);
-  }
+  // Función delegada al iframe de Drive
 }
 
 async function handleProcessIntake(event) {
