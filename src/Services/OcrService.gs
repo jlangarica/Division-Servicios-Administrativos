@@ -7,7 +7,7 @@
  * y normalización de tablas basada en auditoría documental.
  */
 const OcrService = (() => {
-  /** @const {string} Modelo optimizado para extracción de datos (Gemini 3 Flash Lite) */
+  /** @const {string} Modelo solicitado: Gemini 3 Flash Lite */
   const MODEL_ID = "gemini-3-flash-lite-preview";
 
   /** @const {string} Base URL del endpoint REST de Gemini */
@@ -212,9 +212,16 @@ toda la información aplicando las siguientes REGLAS DE ORO con precisión quir�
       muteHttpExceptions: true,
     };
 
+    if (!base64Data || typeof base64Data !== "string") {
+      throw new Error(
+        "El servidor recibió un archivo corrupto o vacío (base64Data is missing).",
+      );
+    }
+
+    const dataSize = base64Data.length;
     console.log(
-      "[OcrService] Enviando PDF a Gemini (%s bytes base64)...",
-      base64Data.length,
+      "[OcrService] Enviando PDF a Gemini (%s caracteres)...",
+      dataSize,
     );
     const response = UrlFetchApp.fetch(apiUrl, options);
     const responseCode = response.getResponseCode();
