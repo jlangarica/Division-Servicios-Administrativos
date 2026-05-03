@@ -1,0 +1,72 @@
+<style>
+  /* === GESTION FOLIO STYLES === */
+  .action-bar {
+    display: flex; gap: 12px; margin-top: 24px; padding-top: 16px;
+    border-top: 1px solid var(--color-neutral-200);
+  }
+  
+  .dynamic-panel-header {
+    margin-bottom: 20px;
+  }
+  
+  .status-tag {
+    font-size: 11px; font-weight: 700; padding: 4px 10px;
+    border-radius: 20px; text-transform: uppercase;
+    background: var(--color-primary-light); color: var(--color-primary);
+  }
+</style>
+
+<div class="split-view" style="display:flex; flex-wrap:wrap; flex-grow:1; gap:var(--space-4); box-sizing:border-box; min-height:0;">
+  
+  <!-- PANEL IZQUIERDO: Visor PDF -->
+  <div class="card" style="flex: 1 1 58%; min-width:300px; display:flex; flex-direction:column; position:relative; overflow:hidden; padding:0;">
+    <div style="padding:14px 20px; background:var(--color-surface-dim); border-bottom:1px solid var(--color-neutral-200); display:flex; justify-content:space-between; align-items:center; z-index:3;">
+      <div style="font-weight:600; color:var(--color-neutral-900); display:flex; align-items:center; gap:10px; font-size:14px;">
+        <span style="width:32px; height:32px; border-radius:var(--radius-sm); background:rgba(15, 52, 96, 0.08); display:flex; align-items:center; justify-content:center; color:var(--color-primary);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+        </span>
+        <span id="gestion-folio-title">Expediente</span>
+      </div>
+      
+      <!-- Toolbar -->
+      <div id="pdf-toolbar" style="display:none; align-items:center; gap:6px;">
+        <button type="button" class="btn-ghost btn-sm" onclick="changePage(-1)" style="width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
+        <span id="page-num" style="font-size:12px; font-weight:600;">0</span>
+        <span style="font-size:12px; color:var(--color-neutral-500);">/</span>
+        <span id="page-count" style="font-size:12px; color:var(--color-neutral-500);">0</span>
+        <button type="button" class="btn-ghost btn-sm" onclick="changePage(1)" style="width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+      </div>
+    </div>
+    
+    <div id="pdf-container" style="flex:1; overflow:auto; background:var(--color-surface); display:flex; justify-content:center; align-items:flex-start; padding:24px; position:relative;">
+      <canvas id="pdf-canvas" style="display:none; box-shadow:var(--shadow-xl); border-radius:var(--radius-sm);"></canvas>
+    </div>
+  </div>
+
+  <!-- PANEL DERECHO: Gestión Dinámica -->
+  <div class="card" style="flex: 0 0 380px; min-width:320px; display:flex; flex-direction:column; overflow-y:auto; background:var(--color-surface-dim); padding:28px 26px;">
+    
+    <div class="dynamic-panel-header">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h2 id="folio-display" style="font-size:18px; font-weight:800; color:var(--color-neutral-900);">---</h2>
+        <span id="estado-badge" class="status-tag">Cargando...</span>
+      </div>
+      <p id="servicio-display" style="font-size:12px; color:var(--color-neutral-500); font-weight:500;">---</p>
+    </div>
+
+    <!-- Contenedor dinámico de campos según estado -->
+    <div id="dynamic-fields-container" style="flex:1;">
+      <!-- Se inyecta por JS -->
+    </div>
+
+    <!-- Action Bar: Botones inyectados dinámicamente -->
+    <div id="action-bar" class="action-bar">
+      <!-- Se inyecta por JS -->
+    </div>
+
+  </div>
+</div>

@@ -144,3 +144,56 @@ function processIntake(payload) {
     lock.releaseLock();
   }
 }
+
+/**
+ * Obtiene las solicitudes activas para la bandeja del usuario.
+ * Filtra por rol o asignación según el motor de workflow.
+ * 
+ * @returns {Array<Object>} Lista de expedientes para el Kanban.
+ */
+function getSolicitudesPorUsuario() {
+  try {
+    const user = getActiveUserSession();
+    if (!user) return [];
+
+    const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
+    const sheet = ss.getSheetByName(SHEETS.BASE_DATOS);
+    if (!sheet) return [];
+
+    const values = sheet.getDataRange().getValues();
+    if (values.length < 2) return [];
+
+    const headers = values[0];
+    const colUUID = 0;
+    const colFolio = 2; // folioDsa
+    const colServicio = 5; // servicio_solicitante
+    const colAtiende = 7; // atiende
+    
+    const colEstado = headers.findIndex(h => 
+      h.toString().toLowerCase() === 'estado_actual' || 
+      h.toString().toLowerCase() === 'estatus'
+    );
+
+    // Mapeo de datos para el frontend
+    const solicitudes = values.slice(1).map(row => ({
+      uuid: row[colUUID],
+      folio: row[colFolio],
+      servicio: row[colServicio],
+      estado: colEstado !== -1 ? row[colEstado] : 'S01_RECEPCION',
+      atiende: row[colAtiende]
+    }));
+
+    // Filtro básico: DSA ve todo por ahora, otros ven lo asignado
+    // (Ajustar según lógica de negocio real)
+    if (user.role === 'DSA') {
+      return solicitudes.filter(s => s.estado !== 'FINALIZADO' && s.estado !== 'S99_RECHAZADO');
+    } else {
+      return solicitudes.filter(s => s.atiende === user.email);
+    }
+
+  } catch (error) {
+    console.error('[ExpedienteService] Error en getSolicitudesPorUsuario:', error);
+    return [];
+  }
+}
+
