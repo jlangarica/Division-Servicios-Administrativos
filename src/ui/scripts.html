@@ -643,7 +643,8 @@ async function handleProcessIntake(event) {
         servicio_solicitante: document.getElementById('intake-servicio').value,
         oficio_solicitud: document.getElementById('intake-oficio').value,
         tiene_negativa: document.getElementById('intake-has-negativa').checked,
-        fecha_negativa: document.getElementById('intake-fecha-negativa').value
+        fecha_negativa: document.getElementById('intake-fecha-negativa').value,
+        atiende: AppState.user.email
       }
     };
 
