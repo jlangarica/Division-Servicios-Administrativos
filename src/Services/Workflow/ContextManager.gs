@@ -51,23 +51,35 @@ const ContextManager = {
    * @private
    */
   _hydrateSnapshot: function(uuid_folio) {
-    const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
-    // Asumimos que "Expedientes" y "Base de Datos" podrían referirse a la misma hoja
-    // o que hay una hoja dedicada. Ajustar según la estructura real.
-    const sheetName = SHEETS.EXPEDIENTES || SHEETS.BASE_DATOS; 
-    const sheet = ss.getSheetByName(sheetName);
+    const cache = CacheService.getScriptCache();
+    const dbCacheKey = 'db_snapshot_values';
+    let values;
     
-    if (!sheet) return null;
+    // 1. Intentar obtener datos de la hoja desde caché
+    const cachedValues = cache.get(dbCacheKey);
+    if (cachedValues) {
+      values = JSON.parse(cachedValues);
+    } else {
+      const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
+      const sheetName = SHEETS.EXPEDIENTES || SHEETS.BASE_DATOS; 
+      const sheet = ss.getSheetByName(sheetName);
+      if (!sheet) return null;
+      
+      values = sheet.getDataRange().getValues();
+      // Cacheamos los valores crudos por 60 segundos para evitar I/O masivo en ráfagas
+      try {
+        const serialized = JSON.stringify(values);
+        if (serialized.length < 100000) {
+          cache.put(dbCacheKey, serialized, 60);
+        }
+      } catch (e) {
+        console.warn('[ContextManager] No se pudo cachear la base de datos (excede límite)');
+      }
+    }
 
-    const dataRange = sheet.getDataRange();
-    const values = dataRange.getValues();
-    const headers = values[0]; // Fila de cabecera
-
-    // Mapear el índice de las columnas relevantes
-    const colUUID = 0; // Asumiendo que el UUID está en la primera columna (índice 0) según processIntake
-    // En processIntake rowData: [idInterno, idFolio, folioDsa, tipo_tramite, fechaFormateada, servicio_solicitante, oficio_solicitud, atiende, driveUrl]
-    // Debemos buscar el estado_actual, asumimos que está en una columna llamada 'estado_actual' o se agrega
-    
+    if (!values || values.length < 1) return null;
+    const headers = values[0];
+    const colUUID = 0; 
     let colEstadoActual = headers.findIndex(h => h.toString().toLowerCase() === 'estado_actual' || h.toString().toLowerCase() === 'estatus');
     
     let rowIndex = -1;
@@ -82,15 +94,12 @@ const ContextManager = {
 
     const row = values[rowIndex];
     
-    // Objeto base del snapshot
     return {
       uuid_folio: uuid_folio,
-      rowIndex: rowIndex + 1, // Base 1-index para setValues en el futuro
-      // Si no existe la columna estado_actual, inicializamos en RECEPCION por defecto
+      rowIndex: rowIndex + 1,
       estado_actual: colEstadoActual !== -1 ? row[colEstadoActual] : 'S01_RECEPCION',
-      servicio_solicitante: row[5], // índice 5 en processIntake
-      documents: ['OFICIO_ESCANEADO'], // Simplificación: si existe en BD, el oficio está subido
-      // Espacio para variables dinámicas
+      servicio_solicitante: row[5],
+      documents: ['OFICIO_ESCANEADO'],
       cotizacionesRecibidas: 0 
     };
   },

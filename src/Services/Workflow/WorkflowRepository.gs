@@ -38,45 +38,41 @@ const WorkflowRepository = {
 
       // 4. Mutación Atómica - Side Effects
       const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
+      const sheetExpedientes = ss.getSheetByName(SHEETS.EXPEDIENTES || SHEETS.BASE_DATOS);
+      const sheetFlujo = ss.getSheetByName(SHEETS.FLUJO);
       
       // Actualizar Base de Datos (Expedientes)
-      const sheetExpedientes = ss.getSheetByName(SHEETS.EXPEDIENTES || SHEETS.BASE_DATOS);
       if (sheetExpedientes) {
-        const headers = sheetExpedientes.getRange(1, 1, 1, sheetExpedientes.getLastColumn()).getValues()[0];
+        // En lugar de buscar headers cada vez, podríamos tenerlo en configuración o caché
+        const lastCol = sheetExpedientes.getLastColumn();
+        const headers = sheetExpedientes.getRange(1, 1, 1, lastCol).getValues()[0];
         let colEstadoActual = headers.findIndex(h => h.toString().toLowerCase() === 'estado_actual' || h.toString().toLowerCase() === 'estatus') + 1;
         
         if (colEstadoActual > 0) {
-          // Construir array 2D y realizar mutación atómica en bloque
-          const updateData2D = [[result.nextState]];
-          sheetExpedientes.getRange(context.rowIndex, colEstadoActual, 1, 1).setValues(updateData2D);
-        } else {
-          console.warn('[WorkflowRepository] No se encontró columna estado_actual en la hoja base.');
+          sheetExpedientes.getRange(context.rowIndex, colEstadoActual).setValue(result.nextState);
         }
       }
 
       // Registrar en Historial (Flujo)
-      if (SHEETS.FLUJO) {
-        const sheetFlujo = ss.getSheetByName(SHEETS.FLUJO);
-        if (sheetFlujo) {
-          const timestamp = new Date();
-          const user = payload.userEmail || Session.getActiveUser().getEmail() || 'Desconocido';
-          
-          // Construir fila 1D para Flujo y mutar atómicamente
-          const logRow1D = [
-            uuid_folio,
-            timestamp,
-            event,
-            context.estado_actual,
-            result.nextState,
-            user,
-            payload.reason || ''
-          ];
-          sheetFlujo.appendRow(logRow1D);
-        }
+      if (sheetFlujo) {
+        const timestamp = new Date();
+        const user = payload.userEmail || Session.getActiveUser().getEmail() || 'Desconocido';
+        const logRow1D = [
+          uuid_folio,
+          timestamp,
+          event,
+          context.estado_actual,
+          result.nextState,
+          user,
+          payload.reason || ''
+        ];
+        sheetFlujo.appendRow(logRow1D);
       }
 
       // 5. Invalidación de Caché (¡Crítico!)
-      CacheService.getScriptCache().remove('ctx_' + uuid_folio);
+      const cache = CacheService.getScriptCache();
+      cache.remove('ctx_' + uuid_folio);
+      cache.remove('db_snapshot_values'); // Invalidar el caché de la hoja base
 
       // 6. Liberación y volcado a disco
       SpreadsheetApp.flush();
