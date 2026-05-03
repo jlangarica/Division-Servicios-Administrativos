@@ -621,22 +621,12 @@ function renderPDF(data) {
 
 async function handleProcessIntake(event) {
   event.preventDefault();
-  const fileInput = document.getElementById('intake-file');
-  const file = fileInput.files[0];
-  if (!file) return Toast.show('Falta archivo');
-  
+
   const btn = document.getElementById('btn-submit-intake');
   btn.classList.add('loading');
   
   try {
-    const reader = new FileReader();
-    const base64Data = await new Promise(resolve => {
-      reader.onload = e => resolve(e.target.result.split(',')[1]);
-      reader.readAsDataURL(file);
-    });
-
     const payload = {
-      fileData: { base64: base64Data, fileName: file.name, mimeType: file.type },
       formData: {
         tipo_tramite: document.getElementById('intake-tipo').value,
         fecha_recepcion: document.getElementById('intake-fecha').value,
@@ -645,10 +635,11 @@ async function handleProcessIntake(event) {
         tiene_negativa: document.getElementById('intake-has-negativa').checked,
         fecha_negativa: document.getElementById('intake-fecha-negativa').value,
         atiende: AppState.user.email
-      }
+      },
+      // Items extraídos previamente por Gemini (via Picker → processOcrEndpoint)
+      ocrItems: (typeof _ocrExtractedItems !== 'undefined' && _ocrExtractedItems) ? _ocrExtractedItems : []
     };
 
-    // Usar el antiguo processIntake para el registro inicial (S01_RECEPCION)
     const res = await AsyncRunner.run('processIntake', payload);
     
     if (res.success) {
