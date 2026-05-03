@@ -87,9 +87,9 @@
   --shadow-inner: inset 0 2px 4px 0 rgba(0,0,0,0.04);
 
   /* Sombras elegantes (remplazando las Aura) */
-  --shadow-aura-sm: 0 2px 8px -2px rgba(0, 0, 0, 0.08);
-  --shadow-aura-md: 0 8px 24px -4px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
-  --shadow-aura-lg: 0 20px 40px -8px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  --shadow-aura-sm: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-aura-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --shadow-aura-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
   --shadow-aura-focus: 0 0 0 2px #ffffff, 0 0 0 4px var(--color-primary); /* Focus ring negro */
 
   /* Glassmorphism Lite */
@@ -172,18 +172,16 @@ img, svg { display: block; max-width: 100%; }
 }
 
 .loader-ring {
-  width: 48px;
-  height: 48px;
-  position: relative;
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--color-neutral-200);
+  border-top-color: var(--color-primary);
   border-radius: 50%;
-  /* La estela de cometa */
-  background: conic-gradient(from 0deg, transparent 0%, var(--color-primary) 80%, transparent 100%);
-  animation: orbitalSpin 1.2s linear infinite;
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), black calc(100% - 3px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), black calc(100% - 3px));
+  animation: spin 0.8s linear infinite;
+  /* Elimina las máscaras y gradientes cónicos anteriores */
 }
 
-@keyframes orbitalSpin {
+@keyframes spin {
   to { transform: rotate(360deg); }
 }
 
@@ -621,8 +619,8 @@ img, svg { display: block; max-width: 100%; }
 }
 
 .stat-card:hover .stat-icon {
-  transform: scale(1.1) rotate(-5deg);
-  filter: drop-shadow(0 4px 6px rgba(var(--color-primary-rgb), 0.25));
+  transform: translateY(-2px); /* Movimiento sutil hacia arriba */
+  filter: drop-shadow(0 2px 4px rgba(var(--color-primary-rgb), 0.15));
 }
 
 .stat-icon--primary  { background: var(--color-primary-light); color: var(--color-primary); }
@@ -681,6 +679,12 @@ img, svg { display: block; max-width: 100%; }
   display: flex;
   align-items: center;
   gap: var(--space-3);
+}
+
+.dashboard-view h1,
+.section-header h2 {
+  font-family: var(--font-serif);
+  font-weight: 400; /* La Serif Display se ve más elegante sin ser bold */
 }
 
 .section-header h2 .icon-wrapper {
@@ -904,18 +908,11 @@ img, svg { display: block; max-width: 100%; }
   align-items: center;
   justify-content: center;
   margin: 0 auto var(--space-6);
-  animation: errorIconBounce 0.6s var(--ease-spring) 0.3s both;
 }
 
 @keyframes errorAppear {
   from { opacity: 0; transform: translateY(20px) scale(0.95); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes errorIconBounce {
-  0%   { transform: scale(0); }
-  60%  { transform: scale(1.1); }
-  100% { transform: scale(1); }
 }
 
 .error-card h1 {
@@ -1031,12 +1028,6 @@ img, svg { display: block; max-width: 100%; }
   justify-content: center;
   margin-bottom: var(--space-4);
   color: var(--color-neutral-400);
-  animation: emptyFloat 3s ease-in-out infinite;
-}
-
-@keyframes emptyFloat {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-6px); }
 }
 
 .empty-state h3 {
