@@ -222,25 +222,18 @@ img, svg { display: block; max-width: 100%; }
 /* --- 4. NAVIGATION --- */
 #main-navigation {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  height: var(--nav-height);
-  padding: 0 var(--space-8);
-  /* Frosted Glass Base */
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border-bottom: 1px solid transparent;
-  position: sticky;
+  flex-direction: column;
+  justify-content: flex-start;
+  width: 220px;
+  height: 100vh;
+  position: fixed;
+  left: 0;
   top: 0;
+  padding: var(--space-6) var(--space-4);
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-neutral-200);
   z-index: var(--z-sticky);
-  transition: border-color var(--duration-normal) var(--ease-out-expo),
-              box-shadow var(--duration-normal) var(--ease-out-expo);
-}
-
-#main-navigation.nav-scrolled {
-  border-bottom: 1px solid var(--color-neutral-200);
-  box-shadow: var(--shadow-aura-sm);
+  gap: var(--space-4);
 }
 
 .nav-hidden {
@@ -254,11 +247,11 @@ img, svg { display: block; max-width: 100%; }
 
 @keyframes navSlideIn {
   from {
-    transform: translateY(-100%);
+    transform: translateX(-100%);
     opacity: 0;
   }
   to {
-    transform: translateY(0);
+    transform: translateX(0);
     opacity: 1;
   }
 }
@@ -295,8 +288,10 @@ img, svg { display: block; max-width: 100%; }
 /* Nav Links */
 .nav-links {
   display: flex;
+  flex-direction: column;
   gap: var(--space-1);
   position: relative;
+  width: 100%;
 }
 
 .nav-btn {
@@ -450,32 +445,13 @@ img, svg { display: block; max-width: 100%; }
 
 /* --- 5. APP ROOT & VIEW TRANSITIONS --- */
 #app-root {
-  width: 100%;
-  max-width: var(--content-max-width);
-  margin: 0 auto;
-  padding: var(--space-8);
-  min-height: calc(100vh - var(--nav-height));
-  position: relative;
-}
-
-[data-layout="sidebar"]#main-navigation {
-  flex-direction: column;
-  width: 220px;
-  height: 100vh;
-  position: fixed;
-  left: 0; top: 0;
-  padding: var(--space-6) var(--space-4);
-  border-right: 1px solid var(--color-neutral-200);
-  border-bottom: none;
-  justify-content: flex-start;
-  gap: var(--space-4);
-}
-[data-layout="sidebar"] .nav-links {
-  flex-direction: column;
-  width: 100%;
-}
-[data-layout="sidebar"] ~ #app-root {
+  width: calc(100vw - 220px);
   margin-left: 220px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background-color: var(--color-bg);
 }
 
 /* View transition wrapper */
