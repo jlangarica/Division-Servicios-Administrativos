@@ -2,14 +2,8 @@
  * Servicio de autenticación y gestión de sesiones.
  *
  * @fileoverview Valida al usuario activo contra la lista blanca del Spreadsheet
- * de configuración. Implementa CacheService para reducir lecturas al Sheet
- * y mejorar el tiempo de respuesta en sub-siguientes peticiones.
+ * de configuración. Implementa CacheService para reducir lecturas al Sheet.
  *
- * Patron: Cache-aside con TTL configurable.
- */
-
-/**
- * Estructura de transferencia de datos de usuario.
  * @typedef {Object} UserDTO
  * @property {string} id     - Identificador único del usuario.
  * @property {string} name   - Nombre completo.
@@ -20,37 +14,30 @@
 
 /**
  * Obtiene la sesión del usuario activo validando contra la lista blanca.
- *
- * Flujo:
- *  1. Obtiene el email del usuario activo de Session.
- *  2. Busca en caché (hit → retorna inmediatamente).
- *  3. Miss → lee el Sheet en batch, busca en memoria.
- *  4. Guarda resultado en caché y lo retorna.
- *
  * @returns {UserDTO|null} DTO del usuario o null si no está autorizado.
  */
 function getActiveUserSession() {
-  const userEmail = Session.getActiveUser().getEmail();
-
-  if (!userEmail) {
-    console.warn('[Auth] No se pudo obtener el correo del usuario activo.');
-    return null;
-  }
-
-  // --- Cache lookup ---
-  const cache = CacheService.getScriptCache();
-  const cacheKey = 'user_session_' + userEmail;
-  const cached = cache.get(cacheKey);
-
-  if (cached) {
-    console.log('[Auth] Cache HIT para: ' + userEmail);
-    return JSON.parse(cached);
-  }
-
-  console.log('[Auth] Cache MISS para: ' + userEmail + ' — consultando Sheet.');
-
-  // --- Sheet lookup ---
   try {
+    const activeUser = Session.getActiveUser();
+    const userEmail = activeUser ? activeUser.getEmail().toLowerCase() : null;
+
+    if (!userEmail) {
+      console.warn('[Auth] No se pudo obtener el correo del usuario activo (Session.getActiveUser() null).');
+      return null;
+    }
+
+    // --- Cache lookup (Individual user) ---
+    const cache = CacheService.getScriptCache();
+    const cacheKey = 'user_session_' + userEmail;
+    const cached = cache.get(cacheKey);
+
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
+    console.log('[Auth] Cache MISS para: ' + userEmail + ' — consultando Sheet.');
+
+    // --- Sheet lookup ---
     const userDTO = lookupUserInSheet(userEmail);
 
     if (!userDTO) {
@@ -58,21 +45,19 @@ function getActiveUserSession() {
       return null;
     }
 
-    // Guardar en caché
+    // Guardar en caché con el TTL configurado
     cache.put(cacheKey, JSON.stringify(userDTO), CACHE_TTL.USER_SESSION);
-    console.log('[Auth] Sesión cacheada para: ' + userEmail);
-
     return userDTO;
 
   } catch (error) {
-    console.error('[Auth] Error en getActiveUserSession:', error);
+    console.error('[Auth] Error crítico en getActiveUserSession:', error);
     return null;
   }
 }
 
 /**
  * Busca un usuario en el Spreadsheet de configuración.
- * Utiliza lectura en bloque (batch read) para minimizar llamadas a la API.
+ * Implementa una estrategia de caché para el mapa completo de usuarios.
  *
  * @param {string} email Correo electrónico a buscar.
  * @returns {UserDTO|null}
@@ -80,62 +65,49 @@ function getActiveUserSession() {
  */
 function lookupUserInSheet(email) {
   const cache = CacheService.getScriptCache();
-  const mapCacheKey = 'all_users_map';
-  let cachedMap = cache.get(mapCacheKey);
+  const mapCacheKey = 'all_users_map_v2';
+  const cachedMap = cache.get(mapCacheKey);
   
-  if (cachedMap === '__CHUNKED__') {
-    const numChunks = parseInt(cache.get(mapCacheKey + '_num_chunks') || '0');
-    let fullSerializedMap = '';
-    for (let i = 0; i < numChunks; i++) {
-      const chunk = cache.get(mapCacheKey + '_part_' + i);
-      if (!chunk) { fullSerializedMap = null; break; }
-      fullSerializedMap += chunk;
-    }
-    cachedMap = fullSerializedMap;
-  }
-
-  let userMap;
+  let userMapData;
 
   if (cachedMap) {
-    userMap = new Map(JSON.parse(cachedMap)); 
+    userMapData = JSON.parse(cachedMap);
   } else {
+    // Lectura en bloque desde el Spreadsheet
     const ss = SpreadsheetApp.openById(SS_CONFIG_ID);
     const sheet = ss.getSheetByName(SHEETS.USUARIOS);
-    if (!sheet) throw new Error('Hoja no encontrada');
+    if (!sheet) throw new Error('Hoja de usuarios no encontrada en Config Spreadsheet');
 
     const lastRow = sheet.getLastRow();
     if (lastRow < 2) return null;
 
     const data = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
-    userMap = new Map();
+    userMapData = {};
 
     for (const row of data) {
-      if (row[2]) {
-        userMap.set(String(row[2]).toLowerCase(), {
-          id: String(row[0]), name: String(row[1]), email: String(row[2]),
-          role: String(row[3]), prefix: String(row[4]),
-        });
+      const rowEmail = row[2] ? String(row[2]).toLowerCase().trim() : null;
+      if (rowEmail) {
+        userMapData[rowEmail] = {
+          id: String(row[0]),
+          name: String(row[1]),
+          email: rowEmail,
+          role: String(row[3]),
+          prefix: String(row[4]),
+        };
       }
     }
     
-    const serializedMap = JSON.stringify([...userMap]);
-    const mapSize = serializedMap.length;
-
-    if (mapSize > 90000) {
-      // Chunking en CacheService (límite 100KB por key)
-      const chunkSize = 90000;
-      const numChunks = Math.ceil(serializedMap.length / chunkSize);
-      cache.put(mapCacheKey, '__CHUNKED__', CACHE_TTL.LOOKUP_DATA);
-      cache.put(mapCacheKey + '_num_chunks', String(numChunks), CACHE_TTL.LOOKUP_DATA);
-      
-      for (let i = 0; i < numChunks; i++) {
-        const chunk = serializedMap.substring(i * chunkSize, (i + 1) * chunkSize);
-        cache.put(mapCacheKey + '_part_' + i, chunk, CACHE_TTL.LOOKUP_DATA);
+    // Intentar cachear el mapa completo si no excede el límite de 100KB
+    try {
+      const serialized = JSON.stringify(userMapData);
+      if (serialized.length < 100000) {
+        cache.put(mapCacheKey, serialized, CACHE_TTL.LOOKUP_DATA);
       }
-    } else {
-      cache.put(mapCacheKey, serializedMap, CACHE_TTL.LOOKUP_DATA);
+    } catch (e) {
+      console.warn('[Auth] Mapa de usuarios demasiado grande para CacheService');
     }
   }
 
-  return userMap.get(email.toLowerCase()) || null;
+  return userMapData[email] || null;
 }
+

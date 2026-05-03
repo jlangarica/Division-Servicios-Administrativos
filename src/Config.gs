@@ -3,12 +3,31 @@
  * Centraliza constantes, IDs y enums compartidos.
  *
  * @fileoverview Single source of truth para configuración.
- * Cualquier cambio de entorno se realiza aquí.
+ * Los IDs sensibles se recuperan de PropertiesService.
  * @constant
  */
 
-/** ID del Spreadsheet de configuración */
-const SS_CONFIG_ID = '1BsQLunCnWlkRJZUOgXy3mBuRlQZ8EovR7vfN4E6zTHI';
+/** 
+ * Clase de configuración estática para centralizar el acceso a propiedades.
+ */
+const CONFIG = (function() {
+  const props = PropertiesService.getScriptProperties().getProperties();
+  
+  return {
+    /** ID del Spreadsheet de configuración */
+    SS_CONFIG_ID: props.SS_CONFIG_ID || '1BsQLunCnWlkRJZUOgXy3mBuRlQZ8EovR7vfN4E6zTHI',
+    
+    /** ID de la hoja de Adquisiciones/Base de Datos */
+    SS_ADQUISICIONES_ID: props.SS_ADQUISICIONES_ID || '1sI_Yy5A7_HqSH1FY4ftg9EMs-jMw7HpQQFV4Ai7X6z8',
+    
+    /** ID de la carpeta raíz de expedientes en Drive */
+    EXPEDIENTES_FOLDER_ID: props.EXPEDIENTES_FOLDER_ID || '1o5kw1wyPnOzQp8NypnReBHxzjeJEj34G'
+  };
+})();
+
+// Compatibilidad con código existente (Alias)
+const SS_CONFIG_ID = CONFIG.SS_CONFIG_ID;
+const SS_ADQUISICIONES_ID = CONFIG.SS_ADQUISICIONES_ID;
 
 /**
  * Nombres de las hojas de cálculo.
@@ -21,12 +40,9 @@ const SHEETS = Object.freeze({
   FLUJO: 'Flujo',
 });
 
-/** ID de la hoja de Adquisiciones/Base de Datos */
-const SS_ADQUISICIONES_ID = '1sI_Yy5A7_HqSH1FY4ftg9EMs-jMw7HpQQFV4Ai7X6z8';
-
 /** Configuración de Drive */
 const DRIVE_CONFIG = Object.freeze({
-  EXPEDIENTES_FOLDER_ID: '1o5kw1wyPnOzQp8NypnReBHxzjeJEj34G',
+  EXPEDIENTES_FOLDER_ID: CONFIG.EXPEDIENTES_FOLDER_ID,
 });
 
 /**
@@ -49,5 +65,6 @@ const APP_CONFIG = Object.freeze({
 
 // Validación de carga (fail-fast)
 if (!SS_CONFIG_ID || !SS_ADQUISICIONES_ID) {
-  throw new Error('Faltan IDs de configuración crítica en Config.gs');
+  throw new Error('Faltan IDs de configuración crítica. Verifique PropertiesService o Config.gs');
 }
+
