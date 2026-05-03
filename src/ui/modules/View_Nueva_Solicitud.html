@@ -12,13 +12,36 @@
 <div class="split-view" style="display:flex; gap:24px; flex:1; min-height:0; align-items:stretch;">
   
   <!-- PANEL IZQUIERDO: Visor PDF Interactivo -->
-  <div class="card" id="pdf-preview-pane" style="flex: 1 1 60%; display:flex; flex-direction:column; padding:0; overflow:hidden; background:var(--color-neutral-100); border: 2px dashed var(--color-neutral-300);">
-    <div id="pdf-empty-state" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--color-neutral-400); padding: 40px; text-align:center;">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:16px; opacity:0.5;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
-      <p style="font-weight:600; font-size:14px;">Previsualización del Oficio</p>
-      <p style="font-size:12px; max-width:240px; margin-top:8px;">Cargue un archivo PDF para visualizarlo aquí y verificar los datos antes de registrar.</p>
+  <div class="card" id="pdf-preview-pane" style="flex: 1 1 60%; display:flex; flex-direction:column; padding:0; overflow:hidden; background:var(--color-neutral-100); border: 2px dashed var(--color-neutral-300); position:relative;">
+    
+    <!-- Zona de Carga (Visible cuando está vacío) -->
+    <div id="pdf-empty-state" class="drop-zone" 
+         style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--color-neutral-400); padding: 40px; text-align:center; border:none; background:transparent;"
+         onclick="document.getElementById('intake-file').click()" 
+         ondragover="this.classList.add('dragover'); event.preventDefault();" 
+         ondragleave="this.classList.remove('dragover')" 
+         ondrop="handleDrop(event)">
+      
+      <div class="drop-zone-content">
+        <div style="width:64px; height:64px; border-radius:50%; background:var(--color-primary-light); display:flex; align-items:center; justify-content:center; margin-bottom:20px; color:var(--color-primary);">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+        </div>
+        <h3 style="font-weight:800; font-size:18px; color:var(--color-neutral-800); margin-bottom:8px;">Cargar Oficio de Solicitud</h3>
+        <p style="font-size:13px; max-width:280px; margin-top:8px; line-height:1.5;">Arrastre el archivo PDF aquí o haga clic para explorar su equipo.</p>
+        <span style="display:inline-block; margin-top:16px; padding:8px 16px; background:var(--color-primary); color:white; border-radius:var(--radius-md); font-weight:600; font-size:13px;">Seleccionar PDF</span>
+      </div>
+      <input type="file" id="intake-file" style="display:none;" accept=".pdf" onchange="updateFileStatus(this)">
     </div>
-    <div id="pdf-viewer-container" style="display:none; flex:1;">
+
+    <!-- Visor (Visible cuando hay archivo) -->
+    <div id="pdf-viewer-container" style="display:none; flex:1; position:relative;">
+      <!-- Botón flotante para cambiar archivo -->
+      <button class="btn btn-secondary" 
+              style="position:absolute; top:12px; right:12px; z-index:10; box-shadow:var(--shadow-md); padding:6px 12px; font-size:11px;"
+              onclick="document.getElementById('intake-file').click()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+        Cambiar PDF
+      </button>
       <iframe id="pdf-iframe" style="width:100%; height:100%; border:none;" type="application/pdf"></iframe>
     </div>
   </div>
@@ -28,6 +51,8 @@
     <div class="card" style="padding: 24px;">
       <form id="form-nueva-solicitud" onsubmit="handleProcessIntake(event)">
         <div style="display:grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 20px;">
+          <h3 style="font-size:14px; font-weight:800; color:var(--color-neutral-900); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px;">Metadatos del Oficio</h3>
+          
           <!-- Tipo de Trámite: Fijo y Oculto -->
           <input type="hidden" id="intake-tipo" value="COMPRA POR FONDO">
 
@@ -46,7 +71,7 @@
             <input type="text" id="intake-servicio" class="glass-input" placeholder="Nombre de la unidad o departamento" required>
           </div>
 
-          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; border-top:1px solid var(--color-neutral-200); padding-top:16px; margin-top:8px;">
             <div class="glass-input-group" style="display:flex; align-items:center; gap:8px;">
               <label class="glass-input-label" style="margin-bottom:0; cursor:pointer; display:flex; align-items:center; gap:8px; font-size:12px;">
                 <input type="checkbox" id="intake-has-negativa" style="width:16px; height:16px; accent-color:var(--color-primary);" onchange="toggleNegativaDate(this.checked)">
@@ -59,17 +84,6 @@
           </div>
         </div>
 
-        <div class="glass-input-group">
-          <label class="glass-input-label">Archivo PDF</label>
-          <div class="drop-zone" style="padding: 20px; min-height: 100px;" onclick="document.getElementById('intake-file').click()" ondragover="this.classList.add('dragover'); event.preventDefault();" ondragleave="this.classList.remove('dragover')" ondrop="handleDrop(event)">
-            <div class="drop-zone-content">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-              <p id="file-status" style="font-size:11px; margin-top:8px;">Subir o arrastrar PDF</p>
-            </div>
-            <input type="file" id="intake-file" style="display:none;" accept=".pdf" onchange="updateFileStatus(this)">
-          </div>
-        </div>
-
         <div style="margin-top:24px;">
           <button type="submit" id="btn-submit-intake" class="btn btn-primary" style="width:100%; justify-content:center; height:44px;">
             <span class="btn-text">Iniciar Gestión DSA</span>
@@ -78,6 +92,7 @@
         </div>
       </form>
     </div>
+
 
     <div class="card" style="background:var(--color-primary-light); border:none; padding:16px;">
       <h3 style="font-size:14px; font-weight:700; margin-bottom:8px; color:var(--color-primary);">Requisito Legal</h3>
@@ -109,7 +124,6 @@
   }
 
   function updateFileStatus(input) {
-    const status = document.getElementById('file-status');
     const emptyState = document.getElementById('pdf-empty-state');
     const viewerContainer = document.getElementById('pdf-viewer-container');
     const iframe = document.getElementById('pdf-iframe');
@@ -117,9 +131,6 @@
 
     if (input.files.length) {
       const file = input.files[0];
-      status.textContent = 'Archivo listo: ' + file.name;
-      status.style.color = 'var(--color-success)';
-      status.style.fontWeight = '700';
 
       if (file.type === 'application/pdf') {
         // Generar URL temporal para el blob del archivo local
