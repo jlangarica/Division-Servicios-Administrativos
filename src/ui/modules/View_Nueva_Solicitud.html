@@ -189,9 +189,15 @@
         _pickerApiLoaded = true;
       }
 
-      // 3. Construir e invocar el Picker
+      // 3. Validar carpeta buffer
+      if (!config.folderId) {
+        throw new Error('Carpeta temporal no configurada (OCR_BUFFER_FOLDER_ID).');
+      }
+
+      // 4. Construir e invocar el Picker
       const uploadView = new google.picker.DocsUploadView()
-        .setParent(config.folderId);
+        .setParent(config.folderId)
+        .setIncludeFolders(false);
 
       const docsView = new google.picker.DocsView(google.picker.ViewId.DOCS)
         .setMimeTypes('application/pdf')
@@ -201,12 +207,12 @@
         .addView(uploadView)
         .addView(docsView)
         .setOAuthToken(config.oauthToken)
-        .setOrigin(google.script.host.origin)
+        .setDeveloperKey('')
         .setTitle('Seleccionar Oficio de Solicitud (PDF)')
         .setCallback(function(result) {
           handlePickerResult(result, config, btn, originalText);
         })
-        .setSize(900, 550)
+        .setSize(600, 450)
         .build();
 
       picker.setVisible(true);

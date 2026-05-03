@@ -101,30 +101,37 @@ function processOcrEndpoint(fileId) {
     }
 
     // 1. Ingesta — Obtener el blob del archivo desde Drive
-    console.log('[OCR Endpoint] Obteniendo archivo de Drive: %s', fileId);
+    console.log('--- Iniciando OCR para archivo: %s ---', fileId);
     driveFile = DriveApp.getFileById(fileId);
 
     const blob = driveFile.getBlob();
+    const bytes = blob.getBytes();
     const mimeType = blob.getContentType();
-    const base64Data = Utilities.base64Encode(blob.getBytes());
+
+    // 2. Validar tamaño (Gemini tiene límite de ~15MB por petición inline)
+    const MAX_SIZE = 15 * 1024 * 1024;
+    if (bytes.length > MAX_SIZE) {
+      throw new Error('El archivo excede los 15MB permitidos para el análisis IA.');
+    }
 
     console.log(
       '[OCR Endpoint] Archivo cargado — MIME: %s, Size: %s bytes',
       mimeType,
-      blob.getBytes().length
+      bytes.length
     );
 
-    // 2. Análisis — Ejecutar extracción AI
+    // 3. Análisis — Ejecutar extracción AI
+    const base64Data = Utilities.base64Encode(bytes);
     const result = OcrService.analyzeDocumentWithGemini(base64Data, mimeType);
 
     return result;
 
   } catch (e) {
-    console.error('[WorkflowEndpoints] OCR Endpoint Error:', e.message);
+    console.error('ERROR EN OCR ENDPOINT: %s', e.message);
     return { success: false, error: e.message };
 
   } finally {
-    // 3. Clean-up Atómico — SIEMPRE mover a papelera
+    // 4. Clean-up Atómico — SIEMPRE mover a papelera
     if (driveFile) {
       try {
         driveFile.setTrashed(true);
