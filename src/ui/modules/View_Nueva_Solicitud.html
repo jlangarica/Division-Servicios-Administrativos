@@ -210,7 +210,7 @@
         .setOAuthToken(config.oauthToken)
         .setDeveloperKey(config.developerKey)
         .setAppId(config.projectNumber)      // <-- Actualizado a projectNumber
-        .setOrigin(google.script.host.origin) // <-- Handshake de seguridad
+        .setOrigin(window.location.protocol + '//' + window.location.host) // <-- Origen robusto
         .setTitle('Gestión Documental HCG — Seleccionar Oficio')
         .enableFeature(google.picker.Feature.NAV_HIDDEN) // UI más limpia según doc
         .setCallback(function(result) {
