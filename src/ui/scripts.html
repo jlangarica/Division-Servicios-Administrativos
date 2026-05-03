@@ -363,7 +363,174 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
-/* --- LOGIC: Ingreso de Oficio (Split View con PDF.js) --- */
+/* --- LOGIC: Bandeja Kanban y FSM --- */
+
+/**
+ * Carga las solicitudes activas y renderiza el Kanban.
+ */
+async function loadSolicitudesActivas() {
+  const container = document.getElementById('kanban-container');
+  if (!container) return;
+
+  try {
+    const solicitudes = await AsyncRunner.run('getSolicitudesPorUsuario');
+    
+    if (!solicitudes || solicitudes.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-300)" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          <p style="margin-top:16px; font-weight:600; color:var(--color-neutral-400);">No hay solicitudes pendientes en tu bandeja</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = solicitudes.map(s => `
+      <div class="solicitud-card">
+        <div class="card-header">
+          <span class="folio-num">${s.folio}</span>
+          <span class="status-badge status-${s.estado}">${s.estado.replace('S', 'Fase ')}</span>
+        </div>
+        <div class="card-body">
+          <span class="servicio-label">${s.servicio}</span>
+          <div class="meta-info">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            ${s.atiende}
+          </div>
+        </div>
+        <div class="card-footer">
+          <button class="btn-primary btn-manage" onclick="manageFolio('${s.uuid}', '${s.folio}', '${s.servicio}', '${s.estado}')">
+            Gestionar Solicitud
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </button>
+        </div>
+      </div>
+    `).join('');
+
+  } catch (error) {
+    console.error('[Kanban] Error:', error);
+    container.innerHTML = '<p class="error">Error al cargar solicitudes.</p>';
+  }
+}
+
+/**
+ * Navega a la vista de gestión para un folio específico.
+ */
+async function manageFolio(uuid, folio, servicio, estado) {
+  // Cambiar vista
+  renderView('ui/modules/View_Gestion_Folio');
+  
+  // Esperar a que el DOM esté listo
+  setTimeout(async () => {
+    document.getElementById('folio-display').textContent = folio;
+    document.getElementById('servicio-display').textContent = servicio;
+    const badge = document.getElementById('estado-badge');
+    badge.textContent = estado.replace('S', 'Fase ');
+    badge.className = `status-tag status-${estado}`;
+
+    // Cargar PDF y Acciones en paralelo
+    try {
+      const details = await AsyncRunner.run('getFolioDetails', uuid);
+      if (details && details.pdfBase64) {
+        const typedarray = new Uint8Array(atob(details.pdfBase64).split('').map(c => c.charCodeAt(0)));
+        renderPDF(typedarray);
+      }
+      
+      renderGestionPanel(uuid, estado);
+    } catch (err) {
+      console.error('[Gestion] Error:', err);
+      Toast.show('Error al cargar detalles del folio');
+    }
+  }, 300);
+}
+
+/**
+ * Renderiza dinámicamente el panel de campos y botones de acción.
+ */
+async function renderGestionPanel(uuid, estado) {
+  const fieldsContainer = document.getElementById('dynamic-fields-container');
+  const actionBar = document.getElementById('action-bar');
+  if (!fieldsContainer || !actionBar) return;
+
+  // 1. Renderizar campos según estado
+  let fieldsHTML = '';
+  if (estado === 'S01_RECEPCION') {
+    fieldsHTML = `
+      <div class="glass-input-group">
+        <label class="glass-input-label">Actualizar Oficio</label>
+        <p style="font-size:12px; color:var(--color-neutral-500);">Usa el panel de la izquierda para verificar el documento cargado.</p>
+      </div>
+    `;
+  } else if (estado === 'S08_PROVEEDOR_COTIZA') {
+    fieldsHTML = `
+      <div class="glass-input-group">
+        <label class="glass-input-label">Cargar Cotización</label>
+        <input type="file" id="input-cotizacion" class="glass-input" accept=".pdf">
+      </div>
+      <div class="glass-input-group">
+        <label class="glass-input-label">Importe de Cotización</label>
+        <input type="number" id="input-importe" class="glass-input" placeholder="0.00">
+      </div>
+    `;
+  }
+
+  fieldsContainer.innerHTML = fieldsHTML;
+
+  // 2. Cargar acciones desde el Motor FSM
+  try {
+    const actions = await AsyncRunner.run('getAvailableActionsEndpoint', uuid);
+    
+    actionBar.innerHTML = actions.map(event => {
+      const isReject = event === 'REJECT';
+      return `
+        <button class="btn-${isReject ? 'secondary' : 'primary'}" style="flex:1;" onclick="handleWorkflowAction('${uuid}', '${event}')">
+          ${event === 'ADVANCE' ? 'Avanzar Fase' : 'Rechazar / Corregir'}
+        </button>
+      `;
+    }).join('');
+
+    if (actions.length === 0) {
+      actionBar.innerHTML = '<p style="font-size:12px; color:var(--color-neutral-500); text-align:center; width:100%;">No tienes acciones permitidas en esta fase.</p>';
+    }
+
+  } catch (err) {
+    console.error('[FSM] Error al obtener acciones:', err);
+  }
+}
+
+/**
+ * Despacha un evento al motor de Workflow.
+ */
+async function handleWorkflowAction(uuid, event) {
+  const payload = {
+    reason: '',
+    data: {} // Aquí se capturarían datos de los inputs dinámicos
+  };
+
+  // Ejemplo: si requiere razón en REJECT
+  if (event === 'REJECT') {
+    const reason = prompt('Indique el motivo del rechazo:');
+    if (!reason) return;
+    payload.reason = reason;
+  }
+
+  Toast.show('Procesando transición...');
+  
+  try {
+    const res = await AsyncRunner.run('dispatchWorkflowEventEndpoint', uuid, event, payload);
+    
+    if (res.success) {
+      Toast.show('¡Transición exitosa! Nuevo estado: ' + res.newState);
+      navigateMenu(null, 'ui/modules/View_Solicitudes'); // Volver al Kanban
+    } else {
+      Toast.show('Error: ' + res.error);
+    }
+  } catch (err) {
+    Toast.show('Fallo crítico en el servidor');
+  }
+}
+
+/* --- LOGIC: Visor PDF (Legacy modificado) --- */
 let pdfDoc = null;
 let pageNum = 1;
 let currentZoom = 1.0;
@@ -373,19 +540,6 @@ let pageNumPending = null;
 function handleFileSelect(event) {
   const file = event.target.files[0];
   if (!file) return;
-  if (file.type !== 'application/pdf') {
-    Toast.show('Por favor seleccione un archivo PDF válido');
-    return;
-  }
-  
-  // Actualizar zona de carga UI
-  const dropZone = document.getElementById('drop-zone');
-  if (dropZone) {
-    dropZone.classList.add('has-file');
-    document.getElementById('file-name-text').textContent = file.name;
-    document.getElementById('drop-label').textContent = 'Archivo cargado';
-    document.getElementById('drop-hint').textContent = 'Haz clic para cambiar';
-  }
   
   const reader = new FileReader();
   reader.onload = function(e) {
@@ -393,73 +547,48 @@ function handleFileSelect(event) {
     renderPDF(typedarray);
   };
   reader.readAsArrayBuffer(file);
-  updateFormProgress();
 }
 
 function renderPDF(data) {
-  if (typeof pdfjsLib === 'undefined') {
-    console.error('PDF.js no está cargado.');
-    Toast.show('Error: Motor de PDF no disponible.');
-    return;
-  }
+  if (typeof pdfjsLib === 'undefined') return;
   
   pdfjsLib.getDocument(data).promise.then(function(pdf) {
     pdfDoc = pdf;
-    document.getElementById('page-count').textContent = pdf.numPages;
-    document.getElementById('pdf-empty-state').style.display = 'none';
-    document.getElementById('pdf-toolbar').style.display = 'flex';
-    document.getElementById('pdf-canvas').style.display = 'block';
+    const pageCountEl = document.getElementById('page-count');
+    if (pageCountEl) pageCountEl.textContent = pdf.numPages;
+    const toolbar = document.getElementById('pdf-toolbar');
+    if (toolbar) toolbar.style.display = 'flex';
+    const canvas = document.getElementById('pdf-canvas');
+    if (canvas) canvas.style.display = 'block';
+    
     pageNum = 1;
-    pageRendering = false;
-    pageNumPending = null;
     queueRenderPage(pageNum);
-  }).catch(function(err) {
-    console.error('Error al renderizar PDF:', err);
-    Toast.show('Error al procesar el visor PDF');
   });
 }
 
 function renderPage(num) {
   pageRendering = true;
-  
   pdfDoc.getPage(num).then(function(page) {
     const canvas = document.getElementById('pdf-canvas');
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const viewport = page.getViewport({scale: currentZoom});
-    
     canvas.height = viewport.height;
     canvas.width = viewport.width;
     
-    const renderContext = {
-      canvasContext: ctx,
-      viewport: viewport
-    };
-    
-    const renderTask = page.render(renderContext);
-    
-    renderTask.promise.then(function() {
+    const renderContext = { canvasContext: ctx, viewport: viewport };
+    page.render(renderContext).promise.then(function() {
       pageRendering = false;
-      if (pageNumPending !== null) {
-        renderPage(pageNumPending);
-        pageNumPending = null;
-      }
-    }).catch(function(err) {
-      console.warn("Render task interrupted:", err);
-      pageRendering = false;
+      if (pageNumPending !== null) { renderPage(pageNumPending); pageNumPending = null; }
     });
-    
-    document.getElementById('page-num').textContent = num;
+    const pageNumEl = document.getElementById('page-num');
+    if (pageNumEl) pageNumEl.textContent = num;
   });
 }
 
 function queueRenderPage(num) {
-  if (!pdfDoc) return;
-  
-  if (pageRendering) {
-    pageNumPending = num;
-  } else {
-    renderPage(num);
-  }
+  if (pageRendering) pageNumPending = num;
+  else renderPage(num);
 }
 
 function changePage(offset) {
@@ -471,114 +600,57 @@ function changePage(offset) {
   }
 }
 
-function zoomPDF(offset) {
-  currentZoom += offset;
-  if (currentZoom < 0.5) currentZoom = 0.5;
-  if (currentZoom > 3.0) currentZoom = 3.0;
-  queueRenderPage(pageNum);
-}
-
-function updateFormProgress() {
-  // Delegado al motor CSS con la pseudo-clase :has()
-}
-
-function setupFormListeners() {
-  // Listeners de validación visual delegados a CSS :has()
-  
-  const dropZone = document.getElementById('drop-zone');
-  if (dropZone) {
-    dropZone.addEventListener('dragover', function(e) {
-      e.preventDefault();
-      dropZone.classList.add('drag-over');
-    });
-    dropZone.addEventListener('dragleave', function() {
-      dropZone.classList.remove('drag-over');
-    });
-    dropZone.addEventListener('drop', function(e) {
-      e.preventDefault();
-      dropZone.classList.remove('drag-over');
-      const files = e.dataTransfer.files;
-      if (files.length > 0) {
-        document.getElementById('intake-file').files = files;
-        handleFileSelect({ target: { files: files } });
-      }
-    });
-  }
-}
-
-function handleProcessIntake(event) {
+async function handleProcessIntake(event) {
   event.preventDefault();
-  
   const fileInput = document.getElementById('intake-file');
   const file = fileInput.files[0];
-  if (!file) {
-    Toast.show('Falta archivo PDF');
-    return;
-  }
+  if (!file) return Toast.show('Falta archivo');
   
   const btn = document.getElementById('btn-submit-intake');
   btn.classList.add('loading');
   
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const base64Data = e.target.result.split(',')[1];
-    
+  try {
+    const reader = new FileReader();
+    const base64Data = await new Promise(resolve => {
+      reader.onload = e => resolve(e.target.result.split(',')[1]);
+      reader.readAsDataURL(file);
+    });
+
     const payload = {
-      fileData: {
-        base64: base64Data,
-        fileName: file.name,
-        mimeType: file.type
-      },
+      fileData: { base64: base64Data, fileName: file.name, mimeType: file.type },
       formData: {
         tipo_tramite: document.getElementById('intake-tipo').value,
         fecha_recepcion: document.getElementById('intake-fecha').value,
         servicio_solicitante: document.getElementById('intake-servicio').value,
-        oficio_solicitud: document.getElementById('intake-oficio').value,
-        atiende: AppState.user.email
+        oficio_solicitud: document.getElementById('intake-oficio').value
       }
     };
+
+    // Usar el antiguo processIntake para el registro inicial (S01_RECEPCION)
+    const res = await AsyncRunner.run('processIntake', payload);
     
-    google.script.run
-      .withSuccessHandler(function(res) {
-        btn.classList.remove('loading');
-        if (res.success) {
-          Toast.show('¡Expediente generado! Folio: ' + res.folio);
-          document.getElementById('form-intake').reset();
-          
-          // Reset UI state
-          document.getElementById('pdf-empty-state').style.display = 'block';
-          document.getElementById('pdf-toolbar').style.display = 'none';
-          document.getElementById('pdf-canvas').style.display = 'none';
-          const dropZone = document.getElementById('drop-zone');
-          if (dropZone) dropZone.classList.remove('has-file');
-          document.getElementById('drop-label').textContent = 'Oficio Escaneado (.pdf)';
-          document.getElementById('drop-hint').textContent = 'Arrastra o haz clic para seleccionar';
-          updateFormProgress();
-          pdfDoc = null;
-        } else {
-          Toast.show('Error: ' + res.error);
-        }
-      })
-      .withFailureHandler(function(err) {
-        btn.classList.remove('loading');
-        Toast.show('Fallo de red al enviar');
-      })
-      .processIntake(payload);
-  };
-  reader.readAsDataURL(file);
+    if (res.success) {
+      Toast.show('¡Folio generado: ' + res.folio);
+      navigateMenu(null, 'ui/modules/View_Solicitudes');
+    } else {
+      Toast.show('Error: ' + res.error);
+    }
+  } catch (err) {
+    Toast.show('Error de red');
+  } finally {
+    btn.classList.remove('loading');
+  }
 }
 
-/* --- VIEW INITIALIZATION HANDLERS --- */
+/* --- VIEW INITIALIZATION --- */
 document.addEventListener('viewLoaded', function(e) {
   if (e.detail.path === 'ui/modules/View_Dashboard') {
     initDashboard();
   } else if (e.detail.path === 'ui/modules/View_Solicitudes') {
-    const fechaEl = document.getElementById('intake-fecha');
-    if (fechaEl) fechaEl.valueAsDate = new Date();
-    setupFormListeners();
-    updateFormProgress();
+    // init kanban logic if needed
   }
 });
+
 
 function initDashboard() {
   if (typeof AppState === 'undefined' || !AppState.user) return;
