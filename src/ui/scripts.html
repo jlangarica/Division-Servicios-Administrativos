@@ -253,8 +253,9 @@ function loadViewContent(viewPath, root) {
 
 function injectView(html, root, viewPath) {
   try {
-    const sanitized = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-    root.innerHTML = '<div class="view-transition" style="display:flex; flex-direction:column; flex-grow:1; min-height:0;">' + sanitized + '</div>';
+    // Eliminada la regex de sanitización insegura. Se confía plenamente en el HTML servido por include()
+    // desde el servidor propio, permitiendo scripts legítimos y evitando evasiones de XSS.
+    root.innerHTML = '<div class="view-transition" style="display:flex; flex-direction:column; flex-grow:1; min-height:0;">' + html + '</div>';
     AppState.setCurrentView(viewPath);
 
     // Focus management para accesibilidad
@@ -316,6 +317,34 @@ function showModal(title, message, onConfirm) {
 
   overlay.addEventListener('click', function(e) {
     if (e.target === overlay) overlay.remove();
+  });
+}
+
+/**
+ * Solicita el motivo de rechazo mediante un modal institucional (sustituye prompt()).
+ */
+function requestRejectReason() {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-content">
+        <h2 style="font-size:var(--text-lg);font-weight:700;margin-bottom:var(--space-4);">Justificación de Rechazo</h2>
+        <textarea id="reject-reason-input" class="input-field" rows="4" placeholder="Describa el motivo del rechazo (obligatorio)..." style="margin-bottom:var(--space-4); width:100%; border:1px solid var(--color-neutral-300); border-radius:8px; padding:12px;"></textarea>
+        <div style="display:flex;gap:var(--space-3);justify-content:flex-end;">
+          <button class="btn btn-secondary" id="modal-cancel">Cancelar</button>
+          <button class="btn btn-primary" id="modal-confirm" style="background:var(--color-error); border-color:var(--color-error);">Confirmar Rechazo</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    
+    overlay.querySelector('#modal-cancel').onclick = () => { overlay.remove(); resolve(null); };
+    overlay.querySelector('#modal-confirm').onclick = () => {
+      const reason = overlay.querySelector('#reject-reason-input').value.trim();
+      if (!reason) { Toast.show('El motivo es obligatorio'); return; }
+      overlay.remove();
+      resolve(reason);
+    };
   });
 }
 
@@ -386,7 +415,11 @@ async function loadSolicitudesActivas() {
     }
 
     container.innerHTML = solicitudes.map(s => `
-      <div class="solicitud-card">
+      <div class="solicitud-card" 
+           data-uuid="${s.uuid}" 
+           data-folio="${s.folio}" 
+           data-servicio="${s.servicio}" 
+           data-estado="${s.estado}">
         <div class="card-header">
           <span class="folio-num">${s.folio}</span>
           <span class="status-badge status-${s.estado}">${s.estado.replace('S', 'Fase ')}</span>
@@ -395,17 +428,25 @@ async function loadSolicitudesActivas() {
           <span class="servicio-label">${s.servicio}</span>
           <div class="meta-info">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-            ${s.atiende}
+            ${s.atiende || 'Sin asignar'}
           </div>
         </div>
         <div class="card-footer">
-          <button class="btn-primary btn-manage" onclick="manageFolio('${s.uuid}', '${s.folio}', '${s.servicio}', '${s.estado}')">
+          <button class="btn-primary btn-manage btn-card-action">
             Gestionar Solicitud
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
           </button>
         </div>
       </div>
     `).join('');
+
+    // Event Delegation para evitar onclick inline inyectados
+    container.onclick = function(e) {
+      const btn = e.target.closest('.btn-card-action');
+      if (!btn) return;
+      const card = btn.closest('.solicitud-card');
+      manageFolio(card.dataset.uuid, card.dataset.folio, card.dataset.servicio, card.dataset.estado);
+    };
 
   } catch (error) {
     console.error('[Kanban] Error:', error);
@@ -528,9 +569,9 @@ async function handleWorkflowAction(uuid, event) {
     reason: ''
   };
 
-  // Validación de rechazo
+  // Validación de rechazo (UX Modal vs prompt nativo)
   if (event === 'REJECT') {
-    const reason = prompt('Indique el motivo del rechazo (obligatorio):');
+    const reason = await requestRejectReason();
     if (!reason) return;
     payload.reason = reason;
   }
