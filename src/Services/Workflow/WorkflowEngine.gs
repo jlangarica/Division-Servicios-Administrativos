@@ -17,50 +17,41 @@ const WorkflowEngine = {
    * @returns {Object} {ok: boolean, error: string|null, nextState: string|null, requiresReason: boolean}
    */
   evaluateTransition: function(currentState, event, context, payload = {}) {
-    // 1. Buscar la transición en el grafo
-    const transition = WORKFLOW_GRAPH.find(t => 
+    // 1. Obtener TODAS las transiciones candidatas para el estado y evento actual
+    const candidates = WORKFLOW_GRAPH.filter(t => 
       t.from === currentState && t.event === event
     );
 
-    if (!transition) {
-      return { 
-        ok: false, 
-        error: `Transición no definida desde [${currentState}] con evento [${event}].` 
-      };
+    if (candidates.length === 0) {
+      return { ok: false, error: `Transición no definida desde [${currentState}] con evento [${event}].` };
     }
 
-    // 2. Validar Guardas (Predicados algebraicos)
-    try {
-      const guardResult = transition.guard(context);
-      if (!guardResult) {
-        return { 
-          ok: false, 
-          error: "No se cumplen las condiciones o privilegios para esta transición." 
-        };
+    // 2. Evaluar guardas secuencialmente (prioridad por orden de definición en el grafo)
+    for (const transition of candidates) {
+      try {
+        if (transition.guard(context)) {
+          // Si la guarda pasa, validamos si requiere razón
+          if (transition.requiresReason && (!payload.reason || payload.reason.trim() === '')) {
+            return { ok: false, error: "Esta acción requiere un motivo o justificación (reason)." };
+          }
+          
+          return { 
+            ok: true, 
+            error: null, 
+            nextState: transition.to, 
+            requiresReason: transition.requiresReason 
+          };
+        }
+      } catch (e) {
+        console.error('[WorkflowEngine] Error evaluando guarda:', e);
+        return { ok: false, error: "Error interno al evaluar las reglas de negocio." };
       }
-    } catch (e) {
-      console.error('[WorkflowEngine] Error evaluando guarda:', e);
-      return { 
-        ok: false, 
-        error: "Error interno al evaluar las reglas de negocio." 
-      };
     }
 
-    // 3. Validar si requiere razón y no se proporcionó
-    if (transition.requiresReason && (!payload.reason || payload.reason.trim() === '')) {
-      return { 
-        ok: false, 
-        error: "Esta acción requiere un motivo o justificación (reason)." 
-      };
-    }
-
-    return { 
-      ok: true, 
-      error: null, 
-      nextState: transition.to,
-      requiresReason: transition.requiresReason 
-    };
-  },
+    // Si ninguna guarda de los candidatos pasó
+    return { ok: false, error: "No se cumplen las condiciones o privilegios para realizar esta transición." };
+  }
+,
 
   /**
    * Obtiene los eventos válidos (botones a mostrar en la UI) 
