@@ -155,7 +155,11 @@
   // Variables compartidas con scripts.html (Persistentes entre cambios de vista)
   // CRÍTICO: Estas variables DEBEN mantener su valor aunque el script se re-ejecute
   if (!window._ocrExtractedItems) window._ocrExtractedItems = null;
-  if (!window._selectedFileId) window._selectedFileId = null;
+
+  // Recuperar de window o localStorage como respaldo
+  if (!window._selectedFileId) {
+    window._selectedFileId = localStorage.getItem('hcg_last_file_id');
+  }
   
   // DEBUG: Log para rastrear si el fileId se pierde entre renders
   console.log('[View_Nueva_Solicitud INIT] window._selectedFileId=', window._selectedFileId);
@@ -249,8 +253,9 @@
       const fileId = String(doc.id);
       const fileName = doc.name;
 
-      // Persistencia en estado global Y en DOM (defensa en profundidad)
+      // Persistencia en estado global, localStorage Y en DOM (defensa en profundidad)
       window._selectedFileId = fileId;
+      localStorage.setItem('hcg_last_file_id', fileId);
       console.log("[PICKER] window._selectedFileId DESPUÉS:", window._selectedFileId);
       
       var hiddenInput = document.getElementById('hidden-file-id');
@@ -359,18 +364,22 @@
     
     // LEER fileId de MÚLTIPLES fuentes con prioridad estricta
     var windowFileId = window._selectedFileId ? String(window._selectedFileId) : '';
+    var localFileId = localStorage.getItem('hcg_last_file_id') || '';
     var form = document.getElementById('form-nueva-solicitud');
     var formFileId = form ? (form.dataset.fileId || '') : '';
     var hiddenInput = document.getElementById('hidden-file-id');
     var hiddenFileId = hiddenInput ? hiddenInput.value : '';
     
-    // PRIORIDAD: window > form.dataset > hidden
-    var currentFileId = windowFileId || formFileId || hiddenFileId;
+    // PRIORIDAD: window > localStorage > form.dataset > hidden
+    var currentFileId = (windowFileId || localFileId || formFileId || hiddenFileId || '').trim();
     
-    console.log('[handleProcessIntake] windowFileId:', windowFileId);
-    console.log('[handleProcessIntake] formFileId:', formFileId);
-    console.log('[handleProcessIntake] hiddenFileId:', hiddenFileId);
-    console.log('[handleProcessIntake] currentFileId:', currentFileId);
+    console.log('[handleProcessIntake] Diagnóstico de FileID:', {
+      window: windowFileId,
+      local: localFileId,
+      dataset: formFileId,
+      hidden: hiddenFileId,
+      final: currentFileId
+    });
     
     if (!currentFileId) {
       Toast.show('⚠️ Primero selecciona el oficio PDF usando el botón de carga.');
@@ -394,15 +403,19 @@
       var fechaNegativa = tieneNegativa ? (document.getElementById('intake-fecha-negativa').value || '') : '';
       
       // ── Construir ocrItems como array SIMPLE de objetos literales ──
+      // Se mapea según el esquema de OcrService.gs (Gemini response)
       var ocrItemsSimple = [];
       if (window._ocrExtractedItems && Array.isArray(window._ocrExtractedItems)) {
-        for (var i = 0; i < window._ocrExtractedItems.length; i++) {
-          var item = window._ocrExtractedItems[i];
-          ocrItemsSimple.push({
-            key: String(item.key || ''),
-            value: String(item.value || '')
-          });
-        }
+        ocrItemsSimple = window._ocrExtractedItems.map(function(item) {
+          return {
+            codigo_insumo: String(item.codigo_insumo || ''),
+            descripcion: String(item.descripcion || ''),
+            cantidad_solicitada: String(item.cantidad_solicitada || ''),
+            unidad_medida: String(item.unidad_medida || ''),
+            partida: String(item.partida || ''),
+            clave_catalogo: String(item.clave_catalogo || '')
+          };
+        });
       }
 
       // ── Construir payload object y usar JSON.stringify ──
@@ -434,21 +447,9 @@
       }
       
       console.log('[handleProcessIntake] 🚀 ENVIANDO → fileId:', currentFileId, '| payload length:', payloadJson.length);
-      console.log('[handleProcessIntake] 📦 payloadJson preview:', payloadJson.substring(0, 300) + '...');
 
-      // ── LLAMADA DIRECTA con google.script.run (1 solo argumento JSON) ──
-      var res = await new Promise(function(resolve, reject) {
-        google.script.run
-          .withSuccessHandler(function(result) { 
-            console.log('[handleProcessIntake] ✅ SuccessHandler:', result);
-            resolve(result); 
-          })
-          .withFailureHandler(function(error) { 
-            console.error('[handleProcessIntake] 💥 FailureHandler:', error);
-            reject(error); 
-          })
-          .processIntake(payloadJson);
-      });
+      // ── LLAMADA ESTANDARIZADA con AsyncRunner (consistente con la SPA) ──
+      var res = await AsyncRunner.run('processIntake', payloadJson);
 
       console.log('[handleProcessIntake] ✅ Respuesta servidor:', res);
 
@@ -456,6 +457,7 @@
         // Limpiar estado SOLO después de éxito confirmado
         window._selectedFileId = null;
         window._ocrExtractedItems = null;
+        localStorage.removeItem('hcg_last_file_id');
         if (hiddenInput) hiddenInput.value = '';
         if (form) delete form.dataset.fileId;
         
@@ -552,12 +554,10 @@
     const container = document.getElementById('negativa-date-container');
     if (container) {
       container.style.display = show ? 'block' : 'none';
+      const dateInput = document.getElementById('intake-fecha-negativa');
+      if (dateInput) {
+        dateInput.required = show;
+      }
     }
   };
-
-  function toggleNegativaDate(show) {
-    const container = document.getElementById('negativa-date-container');
-    container.style.display = show ? 'block' : 'none';
-    document.getElementById('intake-fecha-negativa').required = show;
-  }
 </script>
