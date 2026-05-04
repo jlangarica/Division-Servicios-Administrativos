@@ -152,10 +152,16 @@
 </style>
 
 <script>
+  console.log('[View_Nueva_Solicitud] 📜 Script re-ejecutado');
+
   // Variables compartidas con scripts.html (Persistentes entre cambios de vista)
   // CRÍTICO: Estas variables DEBEN mantener su valor aunque el script se re-ejecute
   if (!window._ocrExtractedItems) window._ocrExtractedItems = null;
-  if (!window._selectedFileId) window._selectedFileId = null;
+
+  // Recuperar de window o localStorage como respaldo
+  if (!window._selectedFileId) {
+    window._selectedFileId = localStorage.getItem('hcg_last_file_id');
+  }
   
   // DEBUG: Log para rastrear si el fileId se pierde entre renders
   console.log('[View_Nueva_Solicitud INIT] window._selectedFileId=', window._selectedFileId);
@@ -249,8 +255,9 @@
       const fileId = String(doc.id);
       const fileName = doc.name;
 
-      // Persistencia en estado global Y en DOM (defensa en profundidad)
+      // Persistencia en estado global, localStorage Y en DOM (defensa en profundidad)
       window._selectedFileId = fileId;
+      localStorage.setItem('hcg_last_file_id', fileId);
       console.log("[PICKER] window._selectedFileId DESPUÉS:", window._selectedFileId);
       
       var hiddenInput = document.getElementById('hidden-file-id');
@@ -349,28 +356,31 @@
 
 
   // ────────────────────────────────────────────────────────
-  //  PROCESAR INTAKE — Función CRÍTICA (definida AQUÍ para evitar problemas de scope)
+  //  PROCESAR INTAKE — Función CRÍTICA
   // ────────────────────────────────────────────────────────
   
-  window.handleProcessIntake = async function(event) {
-    event.preventDefault();
+  /**
+   * Captura y envía los datos del formulario al servidor.
+   * Se define como función nombrada y se expone globalmente para garantizar ejecución.
+   */
+  async function handleProcessIntake(event) {
+    if (event) event.preventDefault();
     
     console.log('[handleProcessIntake] === INICIO ===');
     
-    // LEER fileId de MÚLTIPLES fuentes con prioridad estricta
+    // 1. Recuperar identificador del archivo (Estrategia de Resiliencia)
     var windowFileId = window._selectedFileId ? String(window._selectedFileId) : '';
+    var localFileId = localStorage.getItem('hcg_last_file_id') || '';
     var form = document.getElementById('form-nueva-solicitud');
     var formFileId = form ? (form.dataset.fileId || '') : '';
     var hiddenInput = document.getElementById('hidden-file-id');
     var hiddenFileId = hiddenInput ? hiddenInput.value : '';
     
-    // PRIORIDAD: window > form.dataset > hidden
-    var currentFileId = windowFileId || formFileId || hiddenFileId;
+    var currentFileId = (windowFileId || localFileId || formFileId || hiddenFileId || '').trim();
     
-    console.log('[handleProcessIntake] windowFileId:', windowFileId);
-    console.log('[handleProcessIntake] formFileId:', formFileId);
-    console.log('[handleProcessIntake] hiddenFileId:', hiddenFileId);
-    console.log('[handleProcessIntake] currentFileId:', currentFileId);
+    console.log('[handleProcessIntake] Diagnóstico de FileID:', {
+      window: windowFileId, local: localFileId, dataset: formFileId, hidden: hiddenFileId, final: currentFileId
+    });
     
     if (!currentFileId) {
       Toast.show('⚠️ Primero selecciona el oficio PDF usando el botón de carga.');
@@ -380,24 +390,28 @@
     const btn = document.getElementById('btn-submit-intake');
     const originalText = btn.innerHTML;
     btn.disabled = true;
-    btn.classList.add('loading');
     btn.innerHTML = '<span>Generando Folio...</span>';
 
     try {
-      // ── Construir formData SIMPLE (solo strings primitivos) ──
-      var tipoTramite = document.getElementById('intake-tipo').value || '';
-      var fechaRecepcion = document.getElementById('intake-fecha').value || '';
-      var servicioSolicitante = document.getElementById('intake-servicio').value || '';
-      var oficioSolicitud = document.getElementById('intake-oficio').value || '';
-      var atiende = (AppState && AppState.user && AppState.user.email) ? AppState.user.email : '';
+      // 2. Construir formData
+      var formData = {
+        tipo_tramite: document.getElementById('intake-tipo').value || '',
+        fecha_recepcion: document.getElementById('intake-fecha').value || '',
+        servicio_solicitante: document.getElementById('intake-servicio').value || '',
+        oficio_solicitud: document.getElementById('intake-oficio').value || '',
+        atiende: (AppState && AppState.user && AppState.user.email) ? AppState.user.email : ''
+      };
+
       var tieneNegativa = document.getElementById('intake-has-negativa').checked;
-      var fechaNegativa = tieneNegativa ? (document.getElementById('intake-fecha-negativa').value || '') : '';
+      if (tieneNegativa) {
+        formData.tiene_negativa = true;
+        formData.fecha_negativa = document.getElementById('intake-fecha-negativa').value || '';
+      }
       
-      // ── Construir ocrItems como array SIMPLE de objetos literales ──
-      // Se mapea según el esquema de OcrService.gs (Gemini response)
-      var ocrItemsSimple = [];
+      // 3. Mapear ítems de OCR (Estructura Gemini)
+      var ocrItems = [];
       if (window._ocrExtractedItems && Array.isArray(window._ocrExtractedItems)) {
-        ocrItemsSimple = window._ocrExtractedItems.map(function(item) {
+        ocrItems = window._ocrExtractedItems.map(function(item) {
           return {
             codigo_insumo: String(item.codigo_insumo || ''),
             descripcion: String(item.descripcion || ''),
@@ -409,69 +423,50 @@
         });
       }
 
-      // ── Construir payload object y usar JSON.stringify ──
-      var payloadObj = {
+      // 4. Construir Payload Único
+      var payload = {
         fileId: currentFileId,
-        formData: {
-          tipo_tramite: tipoTramite,
-          fecha_recepcion: fechaRecepcion,
-          servicio_solicitante: servicioSolicitante,
-          oficio_solicitud: oficioSolicitud,
-          atiende: atiende
-        },
-        ocrItems: ocrItemsSimple
+        formData: formData,
+        ocrItems: ocrItems
       };
       
-      // Agregar campos opcionales solo si aplican
-      if (tieneNegativa) {
-        payloadObj.formData.tiene_negativa = true;
-        if (fechaNegativa) {
-          payloadObj.formData.fecha_negativa = fechaNegativa;
-        }
-      }
-      
-      var payloadJson = JSON.stringify(payloadObj);
+      var payloadJson = JSON.stringify(payload);
       
       // VALIDAR payload ANTES de enviar
       if (!payloadJson || payloadJson.length < 50) {
         throw new Error('Payload JSON inválido (muy pequeño): ' + payloadJson);
       }
       
-      console.log('[handleProcessIntake] 🚀 ENVIANDO → fileId:', currentFileId, '| payload length:', payloadJson.length);
+      console.log('[handleProcessIntake] 🚀 ENVIANDO payload (length: %s)', payloadJson.length);
 
-      // ── LLAMADA ESTANDARIZADA con AsyncRunner (consistente con la SPA) ──
+      // 5. LLAMADA ESTANDARIZADA con AsyncRunner (consistente con la SPA)
       var res = await AsyncRunner.run('processIntake', payloadJson);
 
-      console.log('[handleProcessIntake] ✅ Respuesta servidor:', res);
+      console.log('[handleProcessIntake] ✅ Respuesta:', res);
 
       if (res && res.success) {
-        // Limpiar estado SOLO después de éxito confirmado
+        // Limpiar estado
         window._selectedFileId = null;
         window._ocrExtractedItems = null;
+        localStorage.removeItem('hcg_last_file_id');
         if (hiddenInput) hiddenInput.value = '';
         if (form) delete form.dataset.fileId;
         
         Toast.show('✅ ¡Folio generado: ' + res.folio);
-        navigateMenu(null, 'ui/modules/View_Solicitudes');
+        setTimeout(function() { navigateMenu(null, 'ui/modules/View_Solicitudes'); }, 1000);
       } else {
-        Toast.show('❌ Error: ' + (res ? res.error : 'Respuesta vacía del servidor'));
-        btn.disabled = false;
-        btn.innerHTML = originalText;
+        throw new Error(res ? res.error : 'Error desconocido en el servidor');
       }
     } catch (err) {
-      console.error('[handleProcessIntake] 💥 Error Crítico:', err);
-      console.error('[handleProcessIntake] Stack:', err.stack);
+      console.error('[handleProcessIntake] 💥 Error:', err);
       Toast.show('❌ Error: ' + (err.message || err));
       btn.disabled = false;
       btn.innerHTML = originalText;
-    } finally {
-      if (btn.disabled) {
-        btn.disabled = false;
-        btn.classList.remove('loading');
-        btn.innerHTML = originalText;
-      }
     }
-  };
+  }
+
+  // Exponer a global explicitamente
+  window.handleProcessIntake = handleProcessIntake;
 
 
   // ────────────────────────────────────────────────────────

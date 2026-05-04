@@ -21,6 +21,7 @@ function processIntake(payloadJson) {
   // 0. Debug Log — Ver exactamente que llega desde el navegador
   console.log('[processIntake] INICIO — Firma unificada (1 argumento JSON)');
   console.log('[processIntake] Raw payload type:', typeof payloadJson);
+  console.log('[processIntake] payloadJson length:', payloadJson ? (typeof payloadJson === 'string' ? payloadJson.length : 'N/A') : 'NULL');
   
   var payload;
 
@@ -32,8 +33,10 @@ function processIntake(payloadJson) {
     try {
       console.log('[processIntake] Parseando payload JSON (Length: %s)', payloadJson.length);
       payload = JSON.parse(payloadJson);
+      console.log('[processIntake] Payload parseado exitosamente');
     } catch (e) {
       console.error('[processIntake] Error parseando payloadJson:', e.message);
+      console.error('[processIntake] JSON recibido (recorte):', payloadJson.substring(0, 500));
       return { success: false, error: 'Payload inválido (JSON corrupto): ' + e.message };
     }
   } else {
@@ -43,18 +46,23 @@ function processIntake(payloadJson) {
 
   var fileId = payload.fileId;
   var formData = payload.formData;
-  var ocrItems = Array.isArray(payload.ocrItems) ? payload.ocrItems : [];
+  var ocrItems = payload.ocrItems || [];
 
-  console.log('[processIntake] fileId extraido:', fileId);
-  console.log('[processIntake] fileId type:', typeof fileId);
-  console.log('[processIntake] formData:', formData ? 'presente' : 'ausente');
-  console.log('[processIntake] ocrItems:', ocrItems.length, 'items');
+  console.log('[processIntake] fileId extraído:', fileId);
+  console.log('[processIntake] formData keys:', Object.keys(formData || {}));
+  console.log('[processIntake] ocrItems count:', ocrItems.length);
 
-  // 2. Validar fileId directamente (es un string simple, imposible de perder)
-  if (!fileId || typeof fileId !== 'string' || fileId.trim() === '') {
-    console.error('[processIntake] FILEID INVALIDO - valor:', fileId, '| type:', typeof fileId);
-    return { success: false, error: 'Falta el identificador del archivo PDF.' };
+  // 2. Validar fileId directamente
+  if (!fileId || (typeof fileId !== 'string' && typeof fileId !== 'number') || String(fileId).trim() === '') {
+    console.error('[processIntake] FILEID FALTANTE:', fileId);
+    return {
+      success: false,
+      error: 'Falta el identificador del archivo PDF.'
+    };
   }
+
+  // Asegurar que fileId sea string
+  fileId = String(fileId);
 
   // 3. Validar formData
   if (!formData || typeof formData !== 'object') {
