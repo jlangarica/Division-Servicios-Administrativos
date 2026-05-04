@@ -152,10 +152,14 @@
 </style>
 
 <script>
-  // Variables compartidas con scripts.html (deben ser globales via window)
   // Variables compartidas con scripts.html (Persistentes entre cambios de vista)
-  window._ocrExtractedItems = window._ocrExtractedItems || null;
-  window._selectedFileId = window._selectedFileId || null;
+  // CRÍTICO: Estas variables DEBEN mantener su valor aunque el script se re-ejecute
+  if (!window._ocrExtractedItems) window._ocrExtractedItems = null;
+  if (!window._selectedFileId) window._selectedFileId = null;
+  
+  // DEBUG: Log para rastrear si el fileId se pierde entre renders
+  console.log('[View_Nueva_Solicitud INIT] window._selectedFileId=', window._selectedFileId);
+  
   let _stepInterval = null;
   let _pickerApiLoaded = false;
   const STEP_CHECK_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>';
@@ -238,6 +242,7 @@
   window.handlePickerResult = async function(result) {
     console.log("=== PICKER CALLBACK DISPARADO ===");
     console.log("Acción:", result.action);
+    console.log("[PICKER] window._selectedFileId ANTES:", window._selectedFileId);
 
     if (result.action === google.picker.Action.PICKED) {
       const doc = result.docs[0];
@@ -246,14 +251,22 @@
 
       // Persistencia en estado global Y en DOM (defensa en profundidad)
       window._selectedFileId = fileId;
+      console.log("[PICKER] window._selectedFileId DESPUÉS:", window._selectedFileId);
+      
       var hiddenInput = document.getElementById('hidden-file-id');
-      if (hiddenInput) hiddenInput.value = fileId;
+      if (hiddenInput) {
+        hiddenInput.value = fileId;
+        console.log("[PICKER] hidden-input.value set to:", hiddenInput.value);
+      }
       
       // Tercera capa de persistencia: form dataset (defensa contra re-renderizados)
       var form = document.getElementById('form-nueva-solicitud');
-      if (form) form.dataset.fileId = fileId;
+      if (form) {
+        form.dataset.fileId = fileId;
+        console.log("[PICKER] form.dataset.fileId set to:", form.dataset.fileId);
+      }
       
-      console.log("✅ ID de Archivo persistido:", window._selectedFileId, "| hidden:", fileId, "| form.dataset:", fileId);
+      console.log("✅ ID de Archivo persistido en 3 capas | window:", window._selectedFileId, "| hidden:", fileId, "| form.dataset:", fileId);
 
       // Inicia el stepper visual (UNA sola vez)
       startProcessStepper();

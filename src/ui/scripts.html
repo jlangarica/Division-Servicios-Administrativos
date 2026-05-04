@@ -624,9 +624,14 @@ async function handleProcessIntake(event) {
 
   // ── LEER fileId de MÚLTIPLES fuentes (defensa en profundidad) ──
   // PRIORIDAD: window._selectedFileId PRIMERO (más persistente), luego hidden input, luego form dataset
+  console.log('[handleProcessIntake] === INICIO ===');
+  console.log('[handleProcessIntake] window._selectedFileId:', window._selectedFileId);
+  
   const windowFileId = window._selectedFileId ? String(window._selectedFileId) : '';
-  const hiddenFileId = document.getElementById('hidden-file-id') ? document.getElementById('hidden-file-id').value : '';
-  const formFileId = document.getElementById('form-nueva-solicitud')?.dataset?.fileId || '';
+  const hiddenInput = document.getElementById('hidden-file-id');
+  const hiddenFileId = hiddenInput ? hiddenInput.value : '';
+  const form = document.getElementById('form-nueva-solicitud');
+  const formFileId = form ? (form.dataset.fileId || '') : '';
   const currentFileId = windowFileId || hiddenFileId || formFileId;
   
   console.log('[handleProcessIntake] windowFileId:', windowFileId);
@@ -636,14 +641,16 @@ async function handleProcessIntake(event) {
   
   // Re-sincronizar el hidden input y form dataset (por si el DOM se re-renderizó)
   if (currentFileId) {
-    const hiddenInput = document.getElementById('hidden-file-id');
     if (hiddenInput && hiddenInput.value !== currentFileId) {
       hiddenInput.value = currentFileId;
+      console.log('[handleProcessIntake] hidden-input.value re-sincronizado a:', currentFileId);
     }
-    const form = document.getElementById('form-nueva-solicitud');
     if (form && form.dataset.fileId !== currentFileId) {
       form.dataset.fileId = currentFileId;
+      console.log('[handleProcessIntake] form.dataset.fileId re-sincronizado a:', currentFileId);
     }
+  } else {
+    console.error('[handleProcessIntake] ⚠️ ALERTA: currentFileId es VACÍO después de leer las 3 fuentes');
   }
 
 
