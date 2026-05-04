@@ -1,5 +1,5 @@
 /**
- * Servicio para la gestión de expedientes y recepción de oficios.
+ * Servicio para la gestion de expedientes y recepcion de oficios.
  */
 
 /**
@@ -9,56 +9,60 @@
  * NOTA: La firma fue cambiada de processIntake(fileId, formDataJson, ocrItemsJson) a
  * processIntake(payloadJson) para evitar el bug conocido de google.script.run que
  * pierde el PRIMER argumento cuando se encadenan .withSuccessHandler/.withFailureHandler
- * y se pasan múltiples argumentos (especialmente strings grandes).
- * 
+ * y se pasan multiples argumentos (especialmente strings grandes).
+ *
  * El fileId viaja DENTRO del JSON payload, nunca como argumento separado.
- * Este es el mismo patrón que ya funciona en processOcrEndpoint(fileId) con 1 solo argumento.
+ * Este es el mismo patron que ya funciona en processOcrEndpoint(fileId) con 1 solo argumento.
  *
  * @param {string} payloadJson - JSON string con estructura: {"fileId":"...","formData":{...},"ocrItems":[...]}
  * @returns {Object} Respuesta {success, folio, viewUrl, fileId, error}
  */
 function processIntake(payloadJson) {
-  // 0. Debug Log — Ver exactamente qué llega desde el navegador
+  // 0. Debug Log — Ver exactamente que llega desde el navegador
   console.log('[processIntake] INICIO — Firma unificada (1 argumento JSON)');
-  console.log('[processIntake] payloadJson type:', typeof payloadJson, 'length:', payloadJson ? payloadJson.length : 'null');
+  console.log('[processIntake] payloadJson type:', typeof payloadJson);
+  console.log('[processIntake] payloadJson length:', payloadJson ? payloadJson.length : 'NULL');
   
   if (!payloadJson || typeof payloadJson !== 'string' || payloadJson.trim() === '') {
-    console.error('[processIntake] payloadJson VACÍO o inválido');
-    return { success: false, error: 'Payload vacío o inválido.' };
+    console.error('[processIntake] payloadJson VACIO o invalido - valor:', payloadJson);
+    return { success: false, error: 'Payload vacio o invalido.' };
   }
   
-  console.log('[processIntake] payloadJson COMPLETO:', payloadJson);
+  console.log('[processIntake] payloadJson primeros 500 chars:', payloadJson.substring(0, 500));
 
   // 1. Parsear payload unificado
   var payload;
   try {
     payload = JSON.parse(payloadJson);
+    console.log('[processIntake] JSON parseado exitosamente');
   } catch (e) {
     console.error('[processIntake] Error parseando payloadJson:', e.message);
-    console.error('[processIntake] payloadJson recibido:', payloadJson);
-    return { success: false, error: 'Payload inválido (JSON corrupto): ' + e.message };
+    console.error('[processIntake] payloadJson recibido (primeros 500 chars):', payloadJson ? payloadJson.substring(0, 500) : 'NULL');
+    return { success: false, error: 'Payload invalido (JSON corrupto): ' + e.message };
   }
 
   var fileId = payload.fileId;
   var formData = payload.formData;
   var ocrItems = Array.isArray(payload.ocrItems) ? payload.ocrItems : [];
 
-  console.log('[processIntake] fileId extraído:', fileId);
+  console.log('[processIntake] fileId extraido:', fileId);
+  console.log('[processIntake] fileId type:', typeof fileId);
   console.log('[processIntake] formData:', formData ? 'presente' : 'ausente');
   console.log('[processIntake] ocrItems:', ocrItems.length, 'items');
 
   // 2. Validar fileId directamente (es un string simple, imposible de perder)
   if (!fileId || typeof fileId !== 'string' || fileId.trim() === '') {
-    console.error('[processIntake] FILEID INVALIDO:', fileId);
+    console.error('[processIntake] FILEID INVALIDO - valor:', fileId, '| type:', typeof fileId);
     return { success: false, error: 'Falta el identificador del archivo PDF.' };
   }
 
   // 3. Validar formData
   if (!formData || typeof formData !== 'object') {
+    console.error('[processIntake] formData invalido - valor:', formData);
     return { success: false, error: 'Faltan los datos del formulario.' };
   }
 
-  // 4. Validar campos requeridos del formulario
+// 4. Validar campos requeridos del formulario
   var requiredFields = ['tipo_tramite', 'fecha_recepcion', 'servicio_solicitante', 'oficio_solicitud'];
   for (var i = 0; i < requiredFields.length; i++) {
     var field = requiredFields[i];
