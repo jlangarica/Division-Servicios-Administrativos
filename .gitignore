@@ -1,5 +1,1 @@
-```
-# Google Apps Script specific
-**/.gs
-**/.html
-```
+Nothing should be ignored based on the provided file changes, as they only include source files (.gs, .html) and a markdown document (.md).

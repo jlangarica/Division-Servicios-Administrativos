@@ -3,70 +3,100 @@
  */
 
 /**
+ * Wrapper para processIntake cuando se usa con google.script.run.withUserObject()
+ * El payload grande viaja seguro en withUserObject y este wrapper lo recibe como segundo parámetro
+ * 
+ * @returns {Object} Respuesta {success, folio, viewUrl, fileId, error}
+ */
+function processIntakeWrapper() {
+  // Cuando se usa withUserObject, el primer argumento de la función server-side es undefined
+  // y el payload está en el segundo argumento (userObject)
+  var payloadData = arguments[1];
+  
+  console.log('[processIntakeWrapper] Recibido via withUserObject');
+  console.log('[processIntakeWrapper] Argumentos:', arguments.length);
+  
+  return processIntake(payloadData);
+}
+
+/**
  * Registra el ingreso de un oficio, creando una entidad digital centralizada.
  * Utiliza LockService para garantizar la atomicidad del folio.
  *
- * NOTA: La firma fue cambiada de processIntake(fileId, formDataJson, ocrItemsJson) a
- * processIntake(payloadJson) para evitar el bug conocido de google.script.run que
- * pierde el PRIMER argumento cuando se encadenan .withSuccessHandler/.withFailureHandler
- * y se pasan multiples argumentos (especialmente strings grandes).
+ * NOTA ARQUITECTÓNICA: Firma unificada processIntake(payloadData)
+ * - Soporta tanto string JSON como objeto ya parseado (google.script.run puede auto-deserializar)
+ * - Puede ser llamado directamente O via processIntakeWrapper (para payloads grandes)
  *
- * El fileId viaja DENTRO del JSON payload, nunca como argumento separado.
- * Este es el mismo patron que ya funciona en processOcrEndpoint(fileId) con 1 solo argumento.
- *
- * @param {string} payloadJson - JSON string con estructura: {"fileId":"...","formData":{...},"ocrItems":[...]}
+ * @param {string|Object} payloadData - JSON string u objeto con estructura: {"fileId":"...","formData":{...},"ocrItems":[...]}
  * @returns {Object} Respuesta {success, folio, viewUrl, fileId, error}
  */
-function processIntake(payloadJson) {
+function processIntake(payloadData) {
   // 0. Debug Log — Ver exactamente que llega desde el navegador
-  console.log('[processIntake] INICIO — Firma unificada (1 argumento JSON)');
-  console.log('[processIntake] Raw payload type:', typeof payloadJson);
+  console.log('[processIntake] INICIO — Recepción de payload');
+  console.log('[processIntake] Tipo de dato recibido:', typeof payloadData);
+  console.log('[processIntake] Es null/undefined:', payloadData === null || payloadData === undefined);
   
   var payload;
 
-  // 1. Manejo resiliente del payload (Apps Script a veces auto-parsea JSON)
-  if (typeof payloadJson === 'object' && payloadJson !== null) {
-    console.log('[processIntake] El payload ya llegó como objeto. Saltando JSON.parse.');
-    payload = payloadJson;
-  } else if (typeof payloadJson === 'string' && payloadJson.trim() !== '') {
+  // 1. Manejo resiliente del payload (google.script.run puede auto-parsear JSON)
+  if (typeof payloadData === 'object' && payloadData !== null) {
+    // Caso A: Google Apps Script ya deserializó el JSON automáticamente
+    console.log('[processIntake] Payload llegó como OBJETO (auto-deserializado por GAS)');
+    console.log('[processIntake] Keys del payload:', Object.keys(payloadData).join(', '));
+    payload = payloadData;
+  } else if (typeof payloadData === 'string') {
+    // Caso B: Llegó como string JSON crudo
+    console.log('[processIntake] Payload llegó como STRING JSON (length: %s)', payloadData.length);
+    
+    // Validar que no esté vacío o corrupto
+    if (!payloadData || payloadData.trim() === '') {
+      console.error('[processIntake] ERROR: String JSON VACÍO');
+      return { success: false, error: 'Payload vacío o inválido.' };
+    }
+    
     try {
-      console.log('[processIntake] Parseando payload JSON (Length: %s)', payloadJson.length);
-      payload = JSON.parse(payloadJson);
+      payload = JSON.parse(payloadData);
+      console.log('[processIntake] JSON parseado exitosamente. Keys:', Object.keys(payload).join(', '));
     } catch (e) {
-      console.error('[processIntake] Error parseando payloadJson:', e.message);
+      console.error('[processIntake] ERROR: JSON corrupto -', e.message);
+      console.error('[processIntake] Primeros 100 chars:', payloadData.substring(0, 100));
       return { success: false, error: 'Payload inválido (JSON corrupto): ' + e.message };
     }
   } else {
-    console.error('[processIntake] Payload VACÍO o de tipo inesperado:', typeof payloadJson);
-    return { success: false, error: 'Payload vacío o inválido.' };
+    // Caso C: Tipo inesperado (undefined, number, boolean, etc.)
+    console.error('[processIntake] ERROR: Tipo de dato inesperado:', typeof payloadData);
+    console.error('[processIntake] Valor:', payloadData);
+    return { success: false, error: 'Payload vacío o inválido (tipo: ' + typeof payloadData + ').' };
   }
 
+  // 2. Extraer y validar fileId
   var fileId = payload.fileId;
-  var formData = payload.formData;
-  var ocrItems = Array.isArray(payload.ocrItems) ? payload.ocrItems : [];
+  console.log('[processIntake] fileId extraído:', fileId, '| tipo:', typeof fileId);
+  
+  if (!fileId || typeof fileId !== 'string' || fileId.trim() === '') {
+    console.error('[processIntake] FILEID INVÁLIDO - valor:', fileId, '| tipo:', typeof fileId);
+    return { success: false, error: 'Falta el identificador del archivo PDF (fileId).' };
+  }
 
-  console.log('[processIntake] fileId extraido:', fileId);
-  console.log('[processIntake] fileId type:', typeof fileId);
-  console.log('[processIntake] formData:', formData ? 'presente' : 'ausente');
+  // 3. Extraer y validar formData
+  var formData = payload.formData;
+  console.log('[processIntake] formData:', formData ? 'PRESENTE' : 'AUSENTE');
+  
+  if (!formData || typeof formData !== 'object') {
+    console.error('[processIntake] formData INVÁLIDO - valor:', formData);
+    return { success: false, error: 'Faltan los datos del formulario (formData).' };
+  }
+
+  // 4. Extraer ocrItems (opcional, puede venir vacío)
+  var ocrItems = Array.isArray(payload.ocrItems) ? payload.ocrItems : [];
   console.log('[processIntake] ocrItems:', ocrItems.length, 'items');
 
-  // 2. Validar fileId directamente (es un string simple, imposible de perder)
-  if (!fileId || typeof fileId !== 'string' || fileId.trim() === '') {
-    console.error('[processIntake] FILEID INVALIDO - valor:', fileId, '| type:', typeof fileId);
-    return { success: false, error: 'Falta el identificador del archivo PDF.' };
-  }
-
-  // 3. Validar formData
-  if (!formData || typeof formData !== 'object') {
-    console.error('[processIntake] formData invalido - valor:', formData);
-    return { success: false, error: 'Faltan los datos del formulario.' };
-  }
-
-// 4. Validar campos requeridos del formulario
+  // 5. Validar campos requeridos del formulario
   var requiredFields = ['tipo_tramite', 'fecha_recepcion', 'servicio_solicitante', 'oficio_solicitud'];
   for (var i = 0; i < requiredFields.length; i++) {
     var field = requiredFields[i];
     if (!formData[field] || !String(formData[field]).trim()) {
+      console.error('[processIntake] Campo requerido faltante:', field);
       return { success: false, error: 'El campo [' + field + '] es obligatorio.' };
     }
   }
