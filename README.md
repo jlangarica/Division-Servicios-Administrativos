@@ -1,6 +1,15 @@
-# ◈ Sistema de Compras HCG
+# ◈ Sistema de Compras HCG (Enterprise ERP)
 
-> **Plataforma web institucional** para la gestión integral de compras, requisiciones, expedientes digitales y catálogos del Hospital Civil de Guadalajara. Desarrollada totalmente en **Google Apps Script (V8)** con una arquitectura **SPA** y un **Design System premium**.
+<div align="center">
+
+![GAS](https://img.shields.io/badge/Google%20Apps%20Script-V8-4285F4?style=for-the-badge&logo=google-apps-script&logoColor=white)
+![Gemini](https://img.shields.io/badge/Gemini%20AI-3%20Flash-8E75B2?style=for-the-badge&logo=google-gemini&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-Database-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
+![License](https://img.shields.io/badge/License-Institutional-blue?style=for-the-badge)
+
+> **Plataforma ERP Institucional de Nueva Generación** para la gestión integral de compras, requisiciones, expedientes digitales y catálogos del Hospital Civil de Guadalajara. Una arquitectura **Elite SaaS** sobre **Google Apps Script (V8)** con inteligencia artificial y base de datos histórica distribuida.
+
+</div>
 
 ---
 
@@ -9,11 +18,12 @@
 - [Descripción del Proyecto](#descripción-del-proyecto)
 - [Características Principales](#características-principales)
 - [Arquitectura del Sistema](#arquitectura-del-sistema)
+- [Inteligencia de Datos (Supabase)](#inteligencia-de-datos-supabase)
 - [Flujo de Autenticación](#flujo-de-autenticación)
 - [Estructura de Archivos](#estructura-de-archivos)
 - [Stack Tecnológico](#stack-tecnológico)
 - [Integración Gemini OCR (AI)](#integración-gemini-ocr-ai)
-- [UI / UX – Stepper de Procesamiento](#ui-ux‑stepper-de-procesamiento)
+- [UI / UX – Diseño Editorial y Bento‑Grid](#ui-ux‑diseño-editorial-y-bento‑grid)
 - [Configuración del Entorno](#configuración-del-entorno)
 - [Despliegue y CI/CD](#despliegue-y-cicd)
 - [Guía de Estilo del Código](#guía-de-estilo-del-código)
@@ -24,12 +34,13 @@
 
 ## 📖 Descripción del Proyecto
 
-**Sistema de Compras HCG** es una aplicación monolítica que se ejecuta dentro del ecosistema de Google Workspace.  Su objetivo es centralizar y automatizar los flujos de trabajo de adquisición institucional, ofreciendo:
+**Sistema de Compras HCG** ha evolucionado de una herramienta administrativa a una **aplicación ERP monolítica de alto rendimiento** que se ejecuta dentro del ecosistema de Google Workspace. Centraliza y automatiza los flujos de trabajo de adquisición institucional con un enfoque en la integridad transaccional y la experiencia de usuario de élite.
 
 - **Control de acceso** basado en lista blanca almacenada en Google Sheets y cacheada en `CacheService`.
-- **Interfaz SPA** con carga dinámica de módulos (views) sin recargar la página.
-- **Design System** de nivel Enterprise: layout grid, glassmorphism, bento‑grid y tipografía institucional.
-- **Módulo de OCR AI** que extrae metadatos del oficio de solicitud mediante **Gemini 3 Flash Lite Preview**.
+- **Interfaz SPA Pro** con navegación por sidebar vertical y carga dinámica de módulos sin latencia.
+- **Design System Premium**: Layout editorial, glassmorphism, bento‑grid para analíticas y tipografía institucional (DM Sans).
+- **Módulo de OCR AI**: Extracción inteligente de metadatos mediante **Gemini 3 Flash Lite**, optimizado para documentos oficiales del HCG.
+- **Inteligencia Histórica**: Integración con Supabase para consulta en tiempo real de precios de referencia y catálogos históricos.
 
 ---
 
@@ -37,16 +48,17 @@
 
 | # | Característica | Descripción |
 |---|----------------|-------------|
-| 1 | 🔐 Autenticación institucional | Validación contra Google Sheets, caché 30 min, soporte SSO vía Google.
-| 2 | ⚡ SPA con carga parcial | Router cliente (`scripts.html`) inyecta módulos (`ui/modules/…`).
-| 3 | 🎨 UI Enterprise SaaS | Sidebar vertical, layout editorial, glassmorphism, colores corporativos.
-| 4 | 📦 Arquitectura modular | Separación clara entre **Servicios** (.gs), **Controladores** y **Vistas** (.html).
-| 5 | 🚀 Optimización extrema | Lecturas batch (`getValues()`), cache de tabla, mínimo número de llamadas a API.
-| 6 | ♿ Accesibilidad pro | WCAG 2.2, roles ARIA, focus‑visible, contrast ratios.
-| 7 | 🛡️ Seguridad end‑to‑end | Middleware RPC, protección XSS, bloqueo de path‑traversal.
-| 8 | 🗂️ Split View Engine | Visor PDF.js + formulario dinámico en columnas.
-| 9 | 🤖 OCR AI (Gemini) | Extracción automática de número de oficio, fecha, negativa y tabla de insumos.
-|10| 📊 Stepper UI | Progreso visual en tiempo real durante la extracción de IA.
+| 1 | 🔐 Autenticación Institucional | Validación contra Google Sheets, caché 30 min, soporte SSO vía Google. |
+| 2 | ⚡ SPA con Carga Parcial | Router cliente (`scripts.html`) inyecta módulos dinámicamente. |
+| 3 | 🎨 UI Enterprise SaaS | Sidebar vertical, layout editorial, glassmorphism, colores corporativos HCG. |
+| 4 | 📦 Arquitectura Modular | Separación estricta entre **Servicios**, **Controladores** y **Vistas**. |
+| 5 | 🚀 Optimización Extrema | Lecturas batch (`getValues()`), caché de capa de datos, mínimo overhead de API. |
+| 6 | ♿ Accesibilidad Pro | WCAG 2.2, roles ARIA, focus‑visible, contrast ratios optimizados. |
+| 7 | 🛡️ Seguridad End‑to‑End | Middleware RPC, protección XSS, serialización JSON atómica para estabilidad. |
+| 8 | 🗂️ Split View Engine | Visor PDF interactivo integrado con formulario dinámico de captura. |
+| 9 | 🤖 OCR AI (Gemini) | Extracción automática de folios, fechas, negativas y tablas de insumos complejas. |
+| 10| 📊 Inteligencia Supabase | Cruce de datos con tabla histórica `Historico` para inteligencia de precios. |
+| 11| 🔄 Workflow Flexible | Orquestación de procesos desacoplada de restricciones rígidas de rol para agilidad. |
 
 ---
 
@@ -56,10 +68,12 @@
 graph TB
     subgraph "CAPA DE PRESENTACIÓN (Browser)"
         Index[Index.html Shell]
+        Sidebar[Sidebar Navigation]
         Router[scripts.html / Router]
         CSS[styles.html / Design System]
         Modules[[Vistas Dinámicas / modules/]]
-        Index --> Router
+        Index --> Sidebar
+        Sidebar --> Router
         Index --> CSS
         Router --> Modules
     end
@@ -68,27 +82,41 @@ graph TB
         Main[Main.gs / doGet]
         Auth[AuthService.gs]
         Data[ExpedienteService.gs]
-        Utils[Utils.gs]
+        Supa[SupabaseService.gs]
         Ocr[OcrService.gs]
+        Dash[DashboardService.gs]
         Main --> Auth
         Main --> Data
-        Main --> Utils
+        Main --> Supa
         Main --> Ocr
+        Main --> Dash
     end
 
-    subgraph "CAPA DE INFRAESTRUCTURA (Google)"
-        Sheets[(Google Sheets / DB)]
+    subgraph "CAPA DE PERSISTENCIA Y DATOS"
+        Sheets[(Google Sheets / DB Transaccional)]
         Cache[[CacheService / Sesiones]]
         Drive[(Google Drive / Archivos)]
+        SupaDB[(Supabase / Histórico Inteligente)]
         Auth --> Cache
         Auth --> Sheets
         Data --> Sheets
         Data --> Drive
         Ocr --> Sheets
+        Supa --> SupaDB
     end
 
-    Router -- "google.script.run (RPC)" --> Main
+    Router -- "google.script.run (Atómico/JSON)" --> Main
 ```
+
+---
+
+## 📊 Inteligencia de Datos (Supabase)
+
+El sistema integra una capa de inteligencia documental conectada a una base de datos **Supabase**, específicamente diseñada para:
+- **Validación de Precios**: Contraste automático de precios unitarios contra la tabla `Historico`.
+- **Denominación de Artículos**: Mapeo de códigos internos (`mov_art_codigo`) a descripciones institucionales.
+- **Análisis de Proveedores**: Seguimiento histórico de adjudicaciones por división.
+- **Consistencia Transaccional**: Asegura que el pipeline de ingesta OCR genere registros alineados con el histórico institucional.
 
 ---
 
@@ -109,12 +137,12 @@ sequenceDiagram
     else Cache MISS
         S->>DB: Batch read "Usuarios"
         DB-->>S: Lista blanca
-        S->>S: Validar pertenencia
+        S->>S: Validar pertenencia y rol
         S->>C: set(session, 30min)
     end
     S-->>B: SessionDTO / null
     alt Sesión Válida
-        B->>B: Renderiza UI + Dashboard
+        B->>B: Renderiza Sidebar + Dashboard Bento
     else Sesión Inválida
         B->>B: Carga View_Error_Auth
     end
