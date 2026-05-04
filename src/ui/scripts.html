@@ -637,7 +637,10 @@ async function handleProcessIntake(event) {
   }
 
   const btn = document.getElementById('btn-submit-intake');
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
   btn.classList.add('loading');
+  btn.innerHTML = '<span>Generando Folio...</span>';
 
   try {
     // ── Construir formData limpio ──
@@ -665,14 +668,11 @@ async function handleProcessIntake(event) {
       ocrItemsJson = JSON.stringify(window._ocrExtractedItems);
     }
 
-    console.log('[handleProcessIntake] ENVIANDO → fileId:', currentFileId, 
+    console.log('[handleProcessIntake] 🚀 ENVIANDO → fileId:', currentFileId, 
                 '| formData length:', formDataJson.length, 
                 '| ocrItems length:', ocrItemsJson.length);
 
     // ── LLAMADA DIRECTA con google.script.run (NO usa AsyncRunner) ──
-    // Usamos notación por punto (.processIntake) en vez de bracket
-    // porque google.script.run es un proxy especial de Google.
-    // Argumentos simples (strings) NUNCA se pierden en la serialización.
     const res = await new Promise(function(resolve, reject) {
       google.script.run
         .withSuccessHandler(function(result) { resolve(result); })
@@ -680,21 +680,26 @@ async function handleProcessIntake(event) {
         .processIntake(currentFileId, formDataJson, ocrItemsJson);
     });
 
-    console.log('[handleProcessIntake] Respuesta servidor:', res);
+    console.log('[handleProcessIntake] ✅ Respuesta servidor:', res);
 
     if (res && res.success) {
       window._selectedFileId = null;
       window._ocrExtractedItems = null;
       const hiddenInput = document.getElementById('hidden-file-id');
       if (hiddenInput) hiddenInput.value = '';
+      
       Toast.show('✅ ¡Folio generado: ' + res.folio);
       navigateMenu(null, 'ui/modules/View_Solicitudes');
     } else {
       Toast.show('❌ Error: ' + (res ? res.error : 'Respuesta vacía del servidor'));
+      btn.disabled = false;
+      btn.innerHTML = originalText;
     }
   } catch (err) {
-    console.error('[handleProcessIntake] Error:', err);
+    console.error('[handleProcessIntake] 💥 Error Crítico:', err);
     Toast.show('❌ Error de red o conexión: ' + (err.message || err));
+    btn.disabled = false;
+    btn.innerHTML = originalText;
   } finally {
     btn.classList.remove('loading');
   }
