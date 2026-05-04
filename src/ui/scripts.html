@@ -636,6 +636,8 @@ async function handleProcessIntake(event) {
         fecha_negativa: document.getElementById('intake-fecha-negativa').value,
         atiende: AppState.user.email
       },
+      // FileId del documento subido via Google Picker
+      fileId: (typeof _selectedFileId !== 'undefined') ? _selectedFileId : null,
       // Items extraídos previamente por Gemini (via Picker → processOcrEndpoint)
       ocrItems: (typeof _ocrExtractedItems !== 'undefined' && _ocrExtractedItems) ? _ocrExtractedItems : []
     };
