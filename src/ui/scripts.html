@@ -636,15 +636,15 @@ async function handleProcessIntake(event) {
         fecha_negativa: document.getElementById('intake-fecha-negativa').value,
         atiende: AppState.user.email
       },
-      // FileId del documento subido via Google Picker
+      // FileId del documento subido via Google Picker (usando scope global window)
       fileId: window._selectedFileId || null,
-      // Items extraídos previamente por Gemini (via Picker → processOcrEndpoint)
+      // Items extraídos previamente por Gemini (usando scope global window)
       ocrItems: window._ocrExtractedItems || []
     };
 
-    console.log("=== ENVIANDO INTAKE AL SERVIDOR ===");
-    console.log("Payload FileId:", window._selectedFileId);
-    console.log("Payload FormData:", payload.formData);
+    console.log("=== DIAGNÓSTICO DE ENVÍO ===");
+    console.log("FileId:", payload.fileId);
+    console.log("FormData:", payload.formData);
 
     const res = await AsyncRunner.run('processIntake', payload);
     
