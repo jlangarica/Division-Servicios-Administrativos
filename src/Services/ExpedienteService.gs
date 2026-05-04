@@ -27,7 +27,7 @@ function processIntake(payloadJson) {
     return { success: false, error: 'Payload vacío o inválido.' };
   }
   
-  console.log('[processIntake] payloadJson PRIMEROS 300 chars:', payloadJson.substring(0, 300));
+  console.log('[processIntake] payloadJson COMPLETO:', payloadJson);
 
   // 1. Parsear payload unificado
   var payload;
