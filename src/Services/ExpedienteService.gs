@@ -477,10 +477,10 @@ function processOcrItemsBatch(payloadData) {
       // ==============================================================
       try {
         if (SupabaseService.isConfigured()) {
-          // Limpiar códigos OCR a enteros puros (schema SQL INTEGER)
+          // Limpiar códigos OCR a cadenas de dígitos (schema SQL TEXT)
           const codigosPuros = items
-            .map(i => parseInt(String(i.codigo_insumo).replace(/\D/g, ''), 10))
-            .filter(val => !isNaN(val) && val > 0);
+            .map(i => String(i.codigo_insumo || '').replace(/\D/g, ''))
+            .filter(val => val.length > 0);
 
           const codigosUnicos = [...new Set(codigosPuros)];
 
