@@ -92,11 +92,32 @@
     const root = document.getElementById('library-root');
     try {
       _allExpedientes = await AsyncRunner.run('getExpedientesLibrary');
+      
+      // Poblar filtros dinámicos
+      populateYearFilter(_allExpedientes);
+      
       renderLibrary(_allExpedientes);
     } catch (err) {
       console.error('[Library] Error:', err);
-      root.innerHTML = '<p class="error">Error al cargar el acervo histórico.</p>';
+      root.innerHTML = '<p class="error" style="text-align:center; padding:40px; color:var(--color-error);">Error al conectar con la base de datos maestra.</p>';
     }
+  }
+
+  /**
+   * Genera las opciones del filtro de año dinámicamente.
+   */
+  function populateYearFilter(data) {
+    const filterYear = document.getElementById('filter-year');
+    if (!filterYear) return;
+
+    const years = [...new Set(data.map(exp => exp.anio))].sort((a, b) => b - a);
+    
+    let options = '<option value="ALL">Todos los años</option>';
+    years.forEach(year => {
+      options += `<option value="${year}">${year}</option>`;
+    });
+    
+    filterYear.innerHTML = options;
   }
 
   /**
@@ -105,7 +126,13 @@
   function renderLibrary(data) {
     const root = document.getElementById('library-root');
     if (!data || data.length === 0) {
-      root.innerHTML = '<div class="empty-state">No se encontraron expedientes con los criterios seleccionados</div>';
+      root.innerHTML = `
+        <div class="empty-state" style="text-align:center; padding:80px 20px; background:var(--color-surface); border-radius:var(--radius-lg); border:1px dashed var(--color-neutral-300);">
+          <div style="font-size: 48px; margin-bottom: 16px;">📂</div>
+          <h3 style="color:var(--color-neutral-900); margin-bottom: 8px;">No se encontraron registros</h3>
+          <p style="color:var(--color-neutral-500);">Asegúrese de que existan datos en la "Base de Datos" o intente con otros filtros.</p>
+        </div>
+      `;
       return;
     }
 
@@ -126,25 +153,31 @@
           <span class="year-count">${groups[year].length} expedientes</span>
         </div>
         <div class="expedientes-list" data-year="${year}">
-          ${groups[year].map(exp => `
-            <div class="expediente-row lib-card-action" 
-                 data-uuid="${exp.uuid}" 
-                 data-folio="${exp.folio}" 
-                 data-servicio="${exp.servicio}" 
-                 data-estado="${exp.estado}">
-              <div class="folio-cell">${exp.folio}</div>
-              <div class="servicio-cell" title="${exp.servicio}">${exp.servicio}</div>
-              <div class="fecha-cell">${exp.fecha}</div>
-              <div>
-                <span class="status-badge status-${exp.estado}" style="font-size:10px; padding:2px 8px;">
-                  ${exp.estado.replace('S', 'Fase ')}
-                </span>
+          ${groups[year].map(exp => {
+            const statusClass = exp.estado.includes('RECHAZADO') ? 'rejected' : 
+                               (exp.estado === 'FINALIZADO' ? 'finalized' : 'active');
+            
+            return `
+              <div class="expediente-row lib-card-action" 
+                   data-uuid="${exp.uuid}" 
+                   data-folio="${exp.folio}" 
+                   data-servicio="${exp.servicio}" 
+                   data-estado="${exp.estado}">
+                <div class="folio-cell">${exp.folio}</div>
+                <div class="servicio-cell" title="${exp.servicio}">${exp.servicio}</div>
+                <div class="fecha-cell">${exp.fecha}</div>
+                <div>
+                  <span class="status-badge status-${exp.estado.replace(/[^a-zA-Z0-0]/g, '_')}" 
+                        style="font-size:10px; padding:2px 8px; text-transform: uppercase;">
+                    ${exp.estado.replace('S', 'Fase ')}
+                  </span>
+                </div>
+                <div style="text-align:right; color:var(--color-primary);">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
               </div>
-              <div style="text-align:right; color:var(--color-primary);">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-              </div>
-            </div>
-          `).join('')}
+            `;
+          }).join('')}
         </div>
       </div>
     `).join('');
@@ -166,14 +199,18 @@
     const status = document.getElementById('filter-status').value;
 
     const filtered = _allExpedientes.filter(exp => {
-      const matchSearch = exp.folio.toLowerCase().includes(search) || 
-                          exp.servicio.toLowerCase().includes(search);
+      const matchSearch = (exp.folio || '').toLowerCase().includes(search) || 
+                          (exp.servicio || '').toLowerCase().includes(search) ||
+                          (exp.tipo || '').toLowerCase().includes(search);
+      
       const matchYear = year === 'ALL' || exp.anio === year;
       
       let matchStatus = true;
-      if (status === 'FINALIZADO') matchStatus = exp.estado === 'FINALIZADO';
-      else if (status === 'RECHAZADO') matchStatus = exp.estado.includes('RECHAZADO');
-      else if (status === 'PROCESO') matchStatus = !exp.estado.includes('FINALIZADO') && !exp.estado.includes('RECHAZADO');
+      const est = (exp.estado || '').toUpperCase();
+      
+      if (status === 'FINALIZADO') matchStatus = est === 'FINALIZADO';
+      else if (status === 'RECHAZADO') matchStatus = est.includes('RECHAZADO');
+      else if (status === 'PROCESO') matchStatus = !est.includes('FINALIZADO') && !est.includes('RECHAZADO');
 
       return matchSearch && matchYear && matchStatus;
     });

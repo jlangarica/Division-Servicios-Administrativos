@@ -164,18 +164,34 @@ function processIntake(payload) {
 }
 
 /**
- * Obtiene la biblioteca de expedientes con mapeo dinámico de columnas.
- * @returns {Array<Object>}
+ * Obtiene el acervo histórico de expedientes (Biblioteca).
+ * Prioriza la Base de Datos maestra para garantizar que se lean los datos reales.
+ * 
+ * @returns {Array<Object>} Lista de expedientes procesados.
  */
 function getExpedientesLibrary() {
   try {
     const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
-    const sheet = ss.getSheetByName(SHEETS.EXPEDIENTES) || ss.getSheetByName(SHEETS.BASE_DATOS);
-    if (!sheet) return [];
+    
+    // Prioridad: 'Base de Datos' es el repositorio histórico real.
+    // 'Expedientes' suele ser la hoja de trabajo actual.
+    const sheetBD = ss.getSheetByName(SHEETS.BASE_DATOS);
+    const sheetExp = ss.getSheetByName(SHEETS.EXPEDIENTES);
+    
+    let sheet = sheetBD;
+    if (!sheet || sheet.getLastRow() < 2) {
+      sheet = sheetExp;
+    }
+    
+    if (!sheet || sheet.getLastRow() < 2) {
+      console.warn('[getExpedientesLibrary] No se encontró ninguna hoja con datos.');
+      return [];
+    }
 
-    const data = sheet.getDataRange().getValues();
-    if (data.length < 2) return [];
-
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+    const data = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+    
     const headers = data[0].map(h => String(h).toLowerCase());
     const find = (name) => headers.findIndex(h => h.includes(name));
 
@@ -189,17 +205,36 @@ function getExpedientesLibrary() {
     };
 
     return data.slice(1).map(row => {
-      const folio = idx.folio !== -1 ? String(row[idx.folio]) : 'N/A';
+      const folio = idx.folio !== -1 ? String(row[idx.folio]) : 'S/F';
+      
+      // Extraer año: 1. Del folio (DSA-2024-001) 2. De la fecha 3. Año actual
+      let anio = new Date().getFullYear().toString();
       const anioMatch = folio.match(/-(\d{4})-/);
+      if (anioMatch) {
+        anio = anioMatch[1];
+      } else if (idx.fecha !== -1 && row[idx.fecha] instanceof Date) {
+        anio = row[idx.fecha].getFullYear().toString();
+      }
+
+      // Formatear fecha para el UI
+      let fechaStr = 'N/A';
+      if (idx.fecha !== -1 && row[idx.fecha]) {
+        const val = row[idx.fecha];
+        if (val instanceof Date) {
+          fechaStr = Utilities.formatDate(val, Session.getScriptTimeZone(), 'dd/MM/yyyy');
+        } else {
+          fechaStr = String(val);
+        }
+      }
 
       return {
-        uuid: idx.uuid !== -1 ? row[idx.uuid] : '',
+        uuid: idx.uuid !== -1 ? String(row[idx.uuid]) : '',
         folio: folio,
-        tipo: idx.tipo !== -1 ? row[idx.tipo] : 'N/A',
-        fecha: idx.fecha !== -1 ? row[idx.fecha] : '',
-        servicio: idx.servicio !== -1 ? row[idx.servicio] : '',
-        estado: idx.estado !== -1 ? row[idx.estado] : 'S01_RECEPCION',
-        anio: anioMatch ? anioMatch[1] : new Date().getFullYear().toString()
+        tipo: idx.tipo !== -1 ? String(row[idx.tipo]) : 'N/A',
+        fecha: fechaStr,
+        servicio: idx.servicio !== -1 ? String(row[idx.servicio]) : 'N/A',
+        estado: idx.estado !== -1 ? String(row[idx.estado]).toUpperCase() : 'S01_RECEPCION',
+        anio: anio
       };
     }).reverse();
 
