@@ -7,8 +7,8 @@
  * y normalización de tablas basada en auditoría documental.
  */
 const OcrService = (() => {
-  /** @const {string} Modelo solicitado: Gemini 3 Flash Lite */
-  const MODEL_ID = "gemini-3-flash-lite-preview";
+  /** @const {string} Modelo: Gemini 2.0 Flash Lite (extracción rápida y económica) */
+  const MODEL_ID = "gemini-3.0-flash-preview";
 
   /** @const {string} Base URL del endpoint REST de Gemini */
   const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -177,7 +177,11 @@ toda la información aplicando las siguientes REGLAS DE ORO con precisión quir�
    */
   function analyzeDocumentWithGemini(base64Data, mimeType) {
     // 0. Validación de carga útil — Fail-Fast antes de cualquier trabajo
-    if (!base64Data || typeof base64Data !== "string" || base64Data.length < 100) {
+    if (
+      !base64Data ||
+      typeof base64Data !== "string" ||
+      base64Data.length < 100
+    ) {
       throw new Error(
         "El servidor recibió un archivo corrupto o vacío (base64Data is missing).",
       );
