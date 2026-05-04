@@ -26,10 +26,10 @@
  * @returns {Object} Respuesta {success, folio, viewUrl, fileId, error}
  */
 function processIntake(payload) {
-  // 1. Validación exhaustiva — ahora espera fileId (de Picker), no base64
-  if (!payload?.fileId || !payload?.formData) {
-    return { success: false, error: 'Información de registro incompleta (fileId o formData faltante).' };
-  }
+  // 1. Validación exhaustiva
+  if (!payload) return { success: false, error: 'No se recibió ningún dato (payload null).' };
+  if (!payload.fileId) return { success: false, error: 'Falta el identificador del archivo (fileId missing).' };
+  if (!payload.formData) return { success: false, error: 'Faltan los datos del formulario (formData missing).' };
 
   const { fileId, formData } = payload;
   const requiredFields = ['tipo_tramite', 'fecha_recepcion', 'servicio_solicitante', 'oficio_solicitud'];
