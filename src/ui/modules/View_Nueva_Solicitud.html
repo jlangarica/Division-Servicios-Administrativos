@@ -316,6 +316,8 @@
           }
 
           window._ocrExtractedItems = ocrResult.items || [];
+          console.log('[OCR Callback] ✅ Items guardados en window._ocrExtractedItems:', window._ocrExtractedItems.length, 'items');
+          console.log('[OCR Callback] 📦 Primer item:', window._ocrExtractedItems[0]);
         } else {
           console.error("Error en respuesta OCR:", ocrResult ? ocrResult.error : 'null');
           completeProcessStepper(false);
@@ -356,10 +358,6 @@
     console.log('[handleProcessIntake] === INICIO ===');
     
     // LEER fileId de MÚLTIPLES fuentes con prioridad estricta
-    // 1. window._selectedFileId (más persistente - variable global)
-    // 2. form.dataset.fileId (persistencia en el elemento form)
-    // 3. hidden-input.value (fallback final)
-    
     const windowFileId = window._selectedFileId ? String(window._selectedFileId) : '';
     const form = document.getElementById('form-nueva-solicitud');
     const formFileId = form ? (form.dataset.fileId || '') : '';
@@ -369,30 +367,8 @@
     // PRIORIDAD: window > form.dataset > hidden
     const currentFileId = windowFileId || formFileId || hiddenFileId;
     
-    console.log('[handleProcessIntake] windowFileId:', windowFileId);
-    console.log('[handleProcessIntake] formFileId:', formFileId);
-    console.log('[handleProcessIntake] hiddenFileId:', hiddenFileId);
-    console.log('[handleProcessIntake] currentFileId (final):', currentFileId);
+    console.log('[handleProcessIntake] currentFileId:', currentFileId);
     
-    // Re-sincronizar TODAS las fuentes si tenemos un fileId válido
-    if (currentFileId) {
-      if (window._selectedFileId !== currentFileId) {
-        window._selectedFileId = currentFileId;
-        console.log('[handleProcessIntake] window._selectedFileId re-sincronizado');
-      }
-      if (form && form.dataset.fileId !== currentFileId) {
-        form.dataset.fileId = currentFileId;
-        console.log('[handleProcessIntake] form.dataset.fileId re-sincronizado');
-      }
-      if (hiddenInput && hiddenInput.value !== currentFileId) {
-        hiddenInput.value = currentFileId;
-        console.log('[handleProcessIntake] hidden-input.value re-sincronizado');
-      }
-    } else {
-      console.error('[handleProcessIntake] ⚠️ ALERTA CRÍTICA: currentFileId es VACÍO después de leer las 3 fuentes');
-      console.error('[handleProcessIntake] Estado actual: window._selectedFileId=', window._selectedFileId);
-    }
-
     if (!currentFileId) {
       Toast.show('⚠️ Primero selecciona el oficio PDF usando el botón de carga.');
       return;
@@ -405,35 +381,53 @@
     btn.innerHTML = '<span>Generando Folio...</span>';
 
     try {
-      // ── Construir payload UNIFICADO (1 solo argumento JSON — nunca se pierde) ──
-      const payload = {
-        fileId: currentFileId,
-        formData: {
-          tipo_tramite: document.getElementById('intake-tipo').value || '',
-          fecha_recepcion: document.getElementById('intake-fecha').value || '',
-          servicio_solicitante: document.getElementById('intake-servicio').value || '',
-          oficio_solicitud: document.getElementById('intake-oficio').value || '',
-          atiende: AppState.user.email || ''
-        },
-        ocrItems: (window._ocrExtractedItems && Array.isArray(window._ocrExtractedItems) && window._ocrExtractedItems.length > 0)
-          ? window._ocrExtractedItems
-          : []
-      };
-
-      // Solo agregar campos opcionales si tienen valor real
+      // ── Construir formData SIMPLE (solo strings primitivos) ──
+      const tipoTramite = document.getElementById('intake-tipo').value || '';
+      const fechaRecepcion = document.getElementById('intake-fecha').value || '';
+      const servicioSolicitante = document.getElementById('intake-servicio').value || '';
+      const oficioSolicitud = document.getElementById('intake-oficio').value || '';
+      const atiende = AppState.user.email || '';
       const tieneNegativa = document.getElementById('intake-has-negativa').checked;
-      if (tieneNegativa) {
-        payload.formData.tiene_negativa = true;
-        const fechaNeg = document.getElementById('intake-fecha-negativa').value;
-        if (fechaNeg) payload.formData.fecha_negativa = fechaNeg;
+      const fechaNegativa = tieneNegativa ? (document.getElementById('intake-fecha-negativa').value || '') : '';
+      
+      // ── Construir ocrItems como array SIMPLE de objetos literales ──
+      let ocrItemsSimple = [];
+      if (window._ocrExtractedItems && Array.isArray(window._ocrExtractedItems)) {
+        ocrItemsSimple = window._ocrExtractedItems.map(function(item) {
+          return {
+            key: String(item.key || ''),
+            value: String(item.value || '')
+          };
+        });
       }
 
-      const payloadJson = JSON.stringify(payload);
+      // ── Construir payload JSON MANUALMENTE para evitar problemas de serialización ──
+      var payloadJson = '{' +
+        '"fileId":"' + currentFileId.replace(/"/g, '\\"') + '",' +
+        '"formData":{' +
+          '"tipo_tramite":"' + tipoTramite.replace(/"/g, '\\"') + '",' +
+          '"fecha_recepcion":"' + fechaRecepcion.replace(/"/g, '\\"') + '",' +
+          '"servicio_solicitante":"' + servicioSolicitante.replace(/"/g, '\\"') + '",' +
+          '"oficio_solicitud":"' + oficioSolicitud.replace(/"/g, '\\"') + '",' +
+          '"atiende":"' + atiende.replace(/"/g, '\\"') + '"';
+      
+      if (tieneNegativa) {
+        payloadJson += ',"tiene_negativa":true';
+        if (fechaNegativa) {
+          payloadJson += ',"fecha_negativa":"' + fechaNegativa.replace(/"/g, '\\"') + '"';
+        }
+      }
+      
+      payloadJson += '},"ocrItems":[';
+      for (var i = 0; i < ocrItemsSimple.length; i++) {
+        if (i > 0) payloadJson += ',';
+        payloadJson += '{"key":"' + ocrItemsSimple[i].key.replace(/"/g, '\\"') + '","value":"' + ocrItemsSimple[i].value.replace(/"/g, '\\"') + '"}';
+      }
+      payloadJson += ']}}';
 
-      console.log('[handleProcessIntake] 🚀 ENVIANDO → fileId:', currentFileId, 
-                  '| payload length:', payloadJson.length);
+      console.log('[handleProcessIntake] 🚀 ENVIANDO → fileId:', currentFileId, '| payload length:', payloadJson.length);
 
-      // ── LLAMADA DIRECTA con google.script.run (1 solo argumento JSON — nunca se pierde) ──
+      // ── LLAMADA DIRECTA con google.script.run (1 solo argumento JSON) ──
       const res = await new Promise(function(resolve, reject) {
         google.script.run
           .withSuccessHandler(function(result) { resolve(result); })
@@ -463,7 +457,11 @@
       btn.disabled = false;
       btn.innerHTML = originalText;
     } finally {
-      btn.classList.remove('loading');
+      if (btn.disabled) {
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        btn.innerHTML = originalText;
+      }
     }
   };
 
