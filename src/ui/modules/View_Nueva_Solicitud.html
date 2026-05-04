@@ -449,17 +449,21 @@
       }
       
       // 3. Recolectar bienes extraídos del buffer global (window._ocrExtractedItems)
-      var ocrItems = [];
+      //    CRÍTICO: google.script.run no serializa arrays de objetos complejos correctamente.
+      //    Solución: Pre-serializar a JSON string para preservar la estructura.
+      var ocrItemsRaw = [];
       if (window._ocrExtractedItems && Array.isArray(window._ocrExtractedItems)) {
-        ocrItems = window._ocrExtractedItems;
-        console.log('[Intake] Empaquetando', ocrItems.length, 'ítems del buffer OCR.');
+        ocrItemsRaw = window._ocrExtractedItems;
+        console.log('[Intake] Empaquetando', ocrItemsRaw.length, 'ítems del buffer OCR.');
+        console.log('[Intake] Primer item (debug):', JSON.stringify(ocrItemsRaw[0]));
       }
 
       // 4. Construir Payload Único
+      //    ocrItems se envía como JSON string para evitar la pérdida de datos en el RPC bridge
       var payload = {
         fileId: currentFileId,
         formData: formData,
-        ocrItems: ocrItems
+        ocrItems: JSON.stringify(ocrItemsRaw)
       };
 
       // 5. Delegar a la función de envío transaccional
