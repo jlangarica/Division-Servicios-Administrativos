@@ -235,13 +235,21 @@ toda la información aplicando las siguientes REGLAS DE ORO con precisión quir�
     // 4. Manejo de errores HTTP
     if (responseCode !== 200) {
       let errorMessage = `Error Gemini API (${responseCode})`;
+      let errorDetail = "";
       try {
         const errorObj = JSON.parse(responseBody);
-        errorMessage += ": " + (errorObj.error?.message || "Error desconocido");
+        errorDetail = errorObj.error?.message || "Error desconocido";
+        errorMessage += ": " + errorDetail;
+
+        // Log detallado para diagnóstico de cuotas o seguridad
+        if (errorObj.error?.status) {
+          console.error("[OcrService] Status: %s, Details: %j", errorObj.error.status, errorObj.error.details || []);
+        }
       } catch (_) {
-        errorMessage += ": " + responseBody.substring(0, 200);
+        errorDetail = responseBody.substring(0, 200);
+        errorMessage += ": " + errorDetail;
       }
-      console.error("[OcrService]", errorMessage);
+      console.error("[OcrService] HTTP %s - %s", responseCode, errorMessage);
       throw new Error(errorMessage);
     }
 

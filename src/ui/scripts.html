@@ -189,6 +189,14 @@ let _viewTransitionLock = false;
 
 function renderView(viewPath) {
   if (_viewTransitionLock) return;
+
+  // Cleanup de estados globales al navegar fuera de módulos específicos
+  if (AppState.currentView === 'ui/modules/View_Nueva_Solicitud' && viewPath !== 'ui/modules/View_Nueva_Solicitud') {
+    window._selectedFileId = null;
+    window._ocrExtractedItems = null;
+    console.log('[Router] Estado de OCR limpiado al navegar fuera de Nueva Solicitud');
+  }
+
   _viewTransitionLock = true;
 
   const root = document.getElementById('app-content') || document.getElementById('app-root');
@@ -223,9 +231,28 @@ const AsyncRunner = (() => {
      */
     run(methodName, ...args) {
       return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          console.warn(`[AsyncRunner] La llamada a ${methodName} está tardando más de lo esperado...`);
+        }, 15000);
+
         google.script.run
-          .withSuccessHandler((res) => resolve(res))
-          .withFailureHandler((err) => reject(err))
+          .withSuccessHandler((res) => {
+            clearTimeout(timer);
+            resolve(res);
+          })
+          .withFailureHandler((err) => {
+            clearTimeout(timer);
+            console.error(`[AsyncRunner] Error en ${methodName}:`, err);
+
+            // Normalizar error para el frontend
+            const errorObj = {
+              message: err.message || 'Error desconocido en el servidor',
+              name: err.name || 'ServerError',
+              method: methodName
+            };
+
+            reject(errorObj);
+          })
           [methodName](...args);
       });
     }
@@ -622,6 +649,7 @@ function renderPDF(data) {
 
 // NOTA: handleProcessIntake ahora está definida en View_Nueva_Solicitud.html
 // para evitar problemas de scope y re-ejecución cuando el LRU Cache re-renderiza la vista.
+
 
 
 /* --- VIEW INITIALIZATION --- */

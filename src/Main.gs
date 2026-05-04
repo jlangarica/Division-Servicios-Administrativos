@@ -25,17 +25,26 @@ function include(filename) {
   
   if (!isDev) {
     const cache = CacheService.getScriptCache();
-    const cacheKey = 'html_v2_' + filename.replace(/\//g, '_');
+    const cacheKey = 'html_v3_' + filename.replace(/\//g, '_');
     const cached = cache.get(cacheKey);
     if (cached) return cached;
     
     try {
       const content = HtmlService.createHtmlOutputFromFile(filename).getContent();
-      cache.put(cacheKey, content, 21600); // 6 horas
+
+      // Limitación de CacheService: máximo 100KB por entrada
+      const sizeBytes = content.length * 2; // Estimación simple para UTF-16
+      if (sizeBytes < 100000) {
+        cache.put(cacheKey, content, 21600); // 6 horas
+      } else {
+        console.warn(`[Main] El archivo ${filename} excede los 100KB (%s bytes) y no será cacheado.`, sizeBytes);
+      }
+
       return content;
     } catch (e) {
-      console.error(`[Main] Error en include(${filename}):`, e.message);
-      return `<!-- Error: ${filename} no encontrado -->`;
+      const errorMsg = `[Main] Error en include(${filename}): ${e.message}`;
+      console.error(errorMsg);
+      return `<!-- Error: ${filename} no encontrado. Detalle: ${e.message} -->`;
     }
   }
 
