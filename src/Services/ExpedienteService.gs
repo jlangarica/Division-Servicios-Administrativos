@@ -31,20 +31,45 @@
  * @param {Array} [ocrItems] Items extraídos por Gemini AI (opcional).
  * @returns {Object} Respuesta {success, folio, viewUrl, fileId, error}
  */
-function processIntake(fileId, formData, ocrItems) {
+function processIntake(fileId, formDataJson, ocrItemsJson) {
   // 0. Debug Log
   console.log('[processIntake] INICIO');
   console.log('[processIntake] fileId:', typeof fileId, fileId);
-  console.log('[processIntake] formData:', typeof formData, formData ? Object.keys(formData) : 'null');
-  console.log('[processIntake] ocrItems:', typeof ocrItems, ocrItems ? ocrItems.length : 'null');
 
   // 1. Validación de parámetros individuales
   if (!fileId || typeof fileId !== 'string' || fileId.trim() === '') {
     return { success: false, error: 'Falta el identificador del archivo PDF.' };
   }
+
+  // Parsear formData desde JSON string
+  let formData;
+  try {
+    formData = typeof formDataJson === 'string' ? JSON.parse(formDataJson) : formDataJson;
+  } catch(e) {
+    console.error('[processIntake] Error al parsear formDataJson:', e.message);
+    return { success: false, error: 'Datos del formulario inválidos (JSON parse error).' };
+  }
+
   if (!formData || typeof formData !== 'object') {
     return { success: false, error: 'Faltan los datos del formulario.' };
   }
+
+  // Parsear ocrItems desde JSON string (opcional)
+  let ocrItems = [];
+  if (ocrItemsJson) {
+    try {
+      ocrItems = typeof ocrItemsJson === 'string' ? JSON.parse(ocrItemsJson) : ocrItemsJson;
+    } catch(e) {
+      console.warn('[processIntake] ocrItemsJson no parseable, continuando sin ellos:', e.message);
+    }
+  }
+
+  // Construir payload interno para compatibilidad con código existente
+  const payload = {
+    fileId: fileId,
+    formData: formData,
+    ocrItems: ocrItems || []
+  };
 
   const requiredFields = ['tipo_tramite', 'fecha_recepcion', 'servicio_solicitante', 'oficio_solicitud'];
   for (const field of requiredFields) {
