@@ -14,26 +14,34 @@
  * El fileId viaja DENTRO del JSON payload, nunca como argumento separado.
  * Este es el mismo patrón que ya funciona en processOcrEndpoint(fileId) con 1 solo argumento.
  *
- * @param {string} payloadJson - JSON string con estructura: {fileId, formData, ocrItems}
+ * @param {string} payloadJson - JSON string con estructura: {"fileId":"...","formData":{...},"ocrItems":[...]}
  * @returns {Object} Respuesta {success, folio, viewUrl, fileId, error}
  */
 function processIntake(payloadJson) {
   // 0. Debug Log — Ver exactamente qué llega desde el navegador
   console.log('[processIntake] INICIO — Firma unificada (1 argumento JSON)');
   console.log('[processIntake] payloadJson type:', typeof payloadJson, 'length:', payloadJson ? payloadJson.length : 'null');
+  
+  if (!payloadJson || typeof payloadJson !== 'string' || payloadJson.trim() === '') {
+    console.error('[processIntake] payloadJson VACÍO o inválido');
+    return { success: false, error: 'Payload vacío o inválido.' };
+  }
+  
+  console.log('[processIntake] payloadJson PRIMEROS 300 chars:', payloadJson.substring(0, 300));
 
   // 1. Parsear payload unificado
-  let payload;
+  var payload;
   try {
     payload = JSON.parse(payloadJson);
   } catch (e) {
     console.error('[processIntake] Error parseando payloadJson:', e.message);
-    return { success: false, error: 'Payload inválido (JSON corrupto).' };
+    console.error('[processIntake] payloadJson recibido:', payloadJson);
+    return { success: false, error: 'Payload inválido (JSON corrupto): ' + e.message };
   }
 
-  const fileId = payload.fileId;
-  const formData = payload.formData;
-  const ocrItems = Array.isArray(payload.ocrItems) ? payload.ocrItems : [];
+  var fileId = payload.fileId;
+  var formData = payload.formData;
+  var ocrItems = Array.isArray(payload.ocrItems) ? payload.ocrItems : [];
 
   console.log('[processIntake] fileId extraído:', fileId);
   console.log('[processIntake] formData:', formData ? 'presente' : 'ausente');
@@ -51,8 +59,9 @@ function processIntake(payloadJson) {
   }
 
   // 4. Validar campos requeridos del formulario
-  const requiredFields = ['tipo_tramite', 'fecha_recepcion', 'servicio_solicitante', 'oficio_solicitud'];
-  for (const field of requiredFields) {
+  var requiredFields = ['tipo_tramite', 'fecha_recepcion', 'servicio_solicitante', 'oficio_solicitud'];
+  for (var i = 0; i < requiredFields.length; i++) {
+    var field = requiredFields[i];
     if (!formData[field] || !String(formData[field]).trim()) {
       return { success: false, error: 'El campo [' + field + '] es obligatorio.' };
     }
