@@ -386,13 +386,41 @@ function processOcrItemsBatch(payloadData) {
     // 1. Bloqueo de concurrencia (15s)
     lock.waitLock(15000);
 
+    // ─── DIAGNÓSTICO: Log del payload recibido ───
+    console.log('[processOcrItemsBatch] typeof payloadData:', typeof payloadData);
+    console.log('[processOcrItemsBatch] keys:', Object.keys(payloadData || {}));
+    console.log('[processOcrItemsBatch] typeof payloadData.ocrItems:', typeof payloadData.ocrItems);
+
     // 2. Ejecutar la creación del folio (proceso base)
-    // Nota: processIntake ya gestiona su propia atomicidad para el folio.
     const intakeRes = processIntake(payloadData);
     if (!intakeRes.success) throw new Error(intakeRes.error);
 
     const uuid = intakeRes.uuid;
-    const items = payloadData.ocrItems || [];
+
+    // ─── DESERIALIZACIÓN SEGURA de ocrItems ───
+    // El frontend envía ocrItems como JSON string para evitar la pérdida
+    // de datos en el puente google.script.run (serialización GAS).
+    let items = [];
+    const rawItems = payloadData.ocrItems;
+
+    if (typeof rawItems === 'string' && rawItems.length > 2) {
+      try {
+        items = JSON.parse(rawItems);
+        console.log('[processOcrItemsBatch] Items deserializados desde JSON string:', items.length);
+      } catch (parseErr) {
+        console.error('[processOcrItemsBatch] Error al parsear ocrItems string:', parseErr.message);
+      }
+    } else if (Array.isArray(rawItems)) {
+      items = rawItems;
+      console.log('[processOcrItemsBatch] Items recibidos como Array nativo:', items.length);
+    } else {
+      console.warn('[processOcrItemsBatch] ocrItems no reconocido. Tipo:', typeof rawItems, '| Valor:', String(rawItems).substring(0, 100));
+    }
+
+    console.log('[processOcrItemsBatch] Total items a procesar:', items.length);
+    if (items.length > 0) {
+      console.log('[processOcrItemsBatch] Primer item:', JSON.stringify(items[0]));
+    }
 
     if (items.length > 0) {
       const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
