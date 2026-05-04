@@ -140,7 +140,15 @@ sequenceDiagram
         S->>S: Validar pertenencia y rol
         S->>C: set(session, 30min)
     end
-    S-->>B: SessionDTO /---
+    S-->>B: SessionDTO / null
+    alt Sesión Válida
+        B->>B: Renderiza Sidebar + Dashboard Bento
+    else Sesión Inválida
+        B->>B: Carga View_Error_Auth
+    end
+```
+
+---
 
 ## 📂 Estructura de Archivos
 
@@ -307,19 +315,5 @@ El flujo de trabajo está optimizado para la estabilidad institucional:
 **◈ Sistema de Compras HCG** · Hospital Civil de Guadalajara
 *División de Servicios Administrativos*
 *Desarrollado para la Excelencia Operativa*
-
-</div>
- Roadmap
-
-- **v1.3.0** – Vertical Stepper completo, validación de tabla de insumos, integración con FSM.
-- **v2.0.0** – Reportes automáticos, tablero de control gerencial avanzado, soporte multilingüe.
-- **v2.1.0** – Migración a Gemini 3 Flash (versión estable) y pruebas A/B de UI.
-
----
-
-<div align="center">
-
-**◈ Sistema de Compras HCG** · Hospital Civil de Guadalajara
-*División de Servicios Administrativos*
 
 </div>
