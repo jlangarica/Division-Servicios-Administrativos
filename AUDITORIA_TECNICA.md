@@ -13,21 +13,21 @@ Al extraer texto del PDF con OCR IA y llenar los campos del formulario, aparecí
 
 ### Causa Raíz Identificada
 
-El error se originaba por una combinación de dos problemas arquitectónicos:
+El error se originaba por una implementación incorrecta de un patrón de "resiliencia" en la comunicación entre el cliente y el servidor:
 
-1. **Bug conocido de google.script.run con strings grandes**: Cuando se pasa un string JSON grande (>500 caracteres) como único argumento a `google.script.run`, el motor de GAS puede perder o corromper el primer argumento, especialmente cuando se encadenan `.withSuccessHandler()/.withFailureHandler()`.
+1. **Uso incorrecto de `withUserObject()`**: El código original intentaba usar `withUserObject()` para transportar el payload principal del formulario. Sin embargo, en Google Apps Script, `withUserObject()` está diseñado únicamente para pasar datos a los controladores de éxito/fallo en el lado del cliente, **no** para pasar argumentos a la función del servidor.
 
-2. **Validación insuficiente en el servidor**: La función `processIntake()` original no tenía logging detallado ni manejo explícito para payloads que llegaban como `undefined` o tipos inesperados.
+2. **Llamadas al servidor sin argumentos**: Al usar `serverCall.withUserObject(payload)[methodName]()`, la función del servidor era invocada sin parámetros. Como resultado, `payloadData` llegaba como `undefined`.
+
+3. **Falla en el mecanismo de recuperación**: Aunque `processIntake` intentaba recuperar el dato de `arguments[1]`, este patrón solo funciona si GAS inyecta el UserObject en el servidor, lo cual es un comportamiento no documentado y poco fiable en el motor V8 actual.
 
 ### Flujo del Error
 ```
-Frontend (JSON.stringify → ~800 chars) 
+Frontend (AsyncRunner)
     ↓
-google.script.run.withSuccessHandler().processIntake(payloadJson)
+google.script.run.withUserObject(payloadJson).processIntake() // Sin argumentos
     ↓
-[BUG] GAS pierde/corrompe el primer argumento string grande
-    ↓
-Servidor recibe: payloadData = undefined
+Servidor recibe: processIntake(undefined)
     ↓
 Validación falla → Retorna: "Payload vacío o inválido."
 ```
@@ -36,9 +36,9 @@ Validación falla → Retorna: "Payload vacío o inválido."
 
 ## SOLUCIONES IMPLEMENTADAS
 
-### 1. AsyncRunner Optimizado (`/src/ui/scripts.html`)
+### 1. Corrección de AsyncRunner (`/src/ui/scripts.html`)
 
-Se modificó el `AsyncRunner.run()` para detectar automáticamente payloads grandes y usar `withUserObject()`:
+Se eliminó la lógica de bifurcación que usaba `withUserObject()`. Ahora, `AsyncRunner` utiliza el canal de comunicación estándar y robusto de Apps Script, pasando todos los argumentos directamente a la función del servidor.
 
 ```javascript
 const AsyncRunner = (() => {
@@ -46,16 +46,17 @@ const AsyncRunner = (() => {
     run(methodName, ...args) {
       return new Promise((resolve, reject) => {
         const serverCall = google.script.run
-          .withSuccessHandler((res) => resolve(res))
-          .withFailureHandler((err) => reject(err));
+          .withSuccessHandler((res) => {
+            clearTimeout(timer);
+            resolve(res);
+          })
+          .withFailureHandler((err) => {
+            clearTimeout(timer);
+            reject(err);
+          });
         
-        // OPTIMIZACIÓN CRÍTICA:
-        if (args.length === 1 && typeof args[0] === 'string' && args[0].length > 500) {
-          console.log('[AsyncRunner] Usando withUserObject para payload grande (%s chars)', args[0].length);
-          serverCall.withUserObject(args[0])[methodName]();
-        } else {
-          serverCall[methodName](...args);
-        }
+        // Ejecución estándar y segura
+        serverCall[methodName](...args);
       });
     }
   };
@@ -63,21 +64,13 @@ const AsyncRunner = (() => {
 ```
 
 **Beneficios:**
-- Transparente para el desarrollador (no requiere cambios en las llamadas existentes)
-- Usa `withUserObject()` solo cuando es necesario (>500 chars)
-- Logging automático para debugging
+- Eliminación de comportamientos no documentados.
+- Garantía de recepción de argumentos en el servidor.
+- Código más limpio y fácil de mantener.
 
-### 2. Wrapper processIntakeWrapper (`/src/Services/ExpedienteService.gs`)
+### 2. Eliminación de Redundancias en el Servidor (`/src/Services/ExpedienteService.gs`)
 
-Se creó un wrapper específico para manejar payloads recibidos via `withUserObject()`:
-
-```javascript
-function processIntakeWrapper() {
-  var payloadData = arguments[1]; // El payload está en el segundo argumento
-  console.log('[processIntakeWrapper] Recibido via withUserObject');
-  return processIntake(payloadData);
-}
-```
+Se eliminó el `processIntakeWrapper` y la lógica de fallback de `arguments[1]`, ya que eran subproductos de la implementación incorrecta de `withUserObject`.
 
 ### 3. Validación Robusta en processIntake (`/src/Services/ExpedienteService.gs`)
 

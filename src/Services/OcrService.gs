@@ -147,7 +147,7 @@ toda la información aplicando las siguientes REGLAS DE ORO con precisión quir�
    * @param {string} raw Texto crudo de la respuesta.
    * @returns {string} JSON limpio listo para parsear.
    */
-  function sanitizeJsonResponse(raw) {
+  const sanitizeJsonResponse = (raw) => {
     if (!raw || typeof raw !== "string") return "{}";
 
     let cleaned = raw.trim();
@@ -160,7 +160,7 @@ toda la información aplicando las siguientes REGLAS DE ORO con precisión quir�
     cleaned = cleaned.replace(/^\uFEFF/, "");
 
     return cleaned.trim();
-  }
+  };
 
   // ────────────────────────────────────────────────────────
   //  MÉTODO PRINCIPAL
@@ -175,7 +175,7 @@ toda la información aplicando las siguientes REGLAS DE ORO con precisión quir�
    * @returns {Object} Datos extraídos según el esquema definido.
    * @throws {Error} Si la API Key no está configurada o la API falla.
    */
-  function analyzeDocumentWithGemini(base64Data, mimeType) {
+  const analyzeDocumentWithGemini = (base64Data, mimeType) => {
     // 0. Validación de carga útil — Fail-Fast antes de cualquier trabajo
     if (
       !base64Data ||
@@ -228,7 +228,15 @@ toda la información aplicando las siguientes REGLAS DE ORO con precisión quir�
       "[OcrService] Enviando PDF a Gemini (%s caracteres)...",
       dataSize,
     );
-    const response = UrlFetchApp.fetch(apiUrl, options);
+
+    let response;
+    try {
+      response = UrlFetchApp.fetch(apiUrl, options);
+    } catch (fetchErr) {
+      console.error("[OcrService] Error crítico de red en UrlFetchApp:", fetchErr.message);
+      throw new Error(`Error de conexión con Gemini AI: ${fetchErr.message}`);
+    }
+
     const responseCode = response.getResponseCode();
     const responseBody = response.getContentText();
 
@@ -288,7 +296,7 @@ toda la información aplicando las siguientes REGLAS DE ORO con precisión quir�
         "La respuesta de Gemini no es un JSON válido tras sanitización.",
       );
     }
-  }
+  };
 
   // ────────────────────────────────────────────────────────
   //  API PÚBLICA
