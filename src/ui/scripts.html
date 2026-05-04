@@ -642,6 +642,10 @@ async function handleProcessIntake(event) {
       ocrItems: window._ocrExtractedItems || []
     };
 
+    console.log("=== ENVIANDO INTAKE AL SERVIDOR ===");
+    console.log("Payload FileId:", window._selectedFileId);
+    console.log("Payload FormData:", payload.formData);
+
     const res = await AsyncRunner.run('processIntake', payload);
     
     if (res.success) {

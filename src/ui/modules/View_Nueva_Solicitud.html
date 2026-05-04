@@ -152,8 +152,9 @@
 
 <script>
   // Variables compartidas con scripts.html (deben ser globales via window)
-  window._ocrExtractedItems = null;
-  window._selectedFileId = null;
+  // Variables compartidas con scripts.html (Persistentes entre cambios de vista)
+  window._ocrExtractedItems = window._ocrExtractedItems || null;
+  window._selectedFileId = window._selectedFileId || null;
   let _stepInterval = null;
   let _pickerApiLoaded = false;
   const STEP_CHECK_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>';
