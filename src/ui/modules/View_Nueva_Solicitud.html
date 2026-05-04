@@ -367,8 +367,46 @@
   // ────────────────────────────────────────────────────────
   
   /**
+   * Firma: async function submitOcrIntakeToSheet(payload: Object)
+   * Lógica: Ejecuta la persistencia transaccional del folio y sus bienes asociados.
+   */
+  async function submitOcrIntakeToSheet(payload) {
+    console.log('[submitOcrIntakeToSheet] Iniciando persistencia por lotes...');
+    
+    // Activar feedback visual (Stepper y bloqueo)
+    document.body.classList.add('is-syncing');
+    
+    try {
+      const res = await AsyncRunner.run('processOcrItemsBatch', payload);
+      
+      if (res && res.success) {
+        // Limpiar estados locales tras éxito
+        window._selectedFileId = null;
+        window._ocrExtractedItems = null;
+        localStorage.removeItem('hcg_last_file_id');
+        
+        Toast.show('✅ Transacción completada: ' + res.folio);
+        
+        // Enrutamiento dinámico SPA hacia el Kanban
+        setTimeout(function() { 
+          navigateMenu(null, 'ui/modules/View_Solicitudes'); 
+        }, 800);
+        
+        return res;
+      } else {
+        throw new Error(res ? res.error : 'Error desconocido en el servidor');
+      }
+    } catch (err) {
+      console.error('[submitOcrIntakeToSheet] Error:', err);
+      Toast.show('❌ Fallo al guardar: ' + (err.message || err));
+      throw err;
+    } finally {
+      document.body.classList.remove('is-syncing');
+    }
+  }
+
+  /**
    * Captura y envía los datos del formulario al servidor.
-   * Se define como función nombrada y se expone globalmente para garantizar ejecución.
    */
   async function handleProcessIntake(event) {
     if (event) event.preventDefault();
@@ -384,10 +422,6 @@
     var hiddenFileId = hiddenInput ? hiddenInput.value : '';
     
     var currentFileId = (windowFileId || localFileId || formFileId || hiddenFileId || '').trim();
-    
-    console.log('[handleProcessIntake] Diagnóstico de FileID:', {
-      window: windowFileId, local: localFileId, dataset: formFileId, hidden: hiddenFileId, final: currentFileId
-    });
     
     if (!currentFileId) {
       Toast.show('⚠️ Primero selecciona el oficio PDF usando el botón de carga.');
@@ -415,63 +449,31 @@
         formData.fecha_negativa = document.getElementById('intake-fecha-negativa').value || '';
       }
       
-      // 3. Mapear ítems de OCR (Estructura Gemini)
+      // 3. Recolectar bienes extraídos del buffer global (window._ocrExtractedItems)
       var ocrItems = [];
       if (window._ocrExtractedItems && Array.isArray(window._ocrExtractedItems)) {
-        ocrItems = window._ocrExtractedItems.map(function(item) {
-          return {
-            codigo_insumo: String(item.codigo_insumo || ''),
-            descripcion: String(item.descripcion || ''),
-            cantidad_solicitada: String(item.cantidad_solicitada || ''),
-            unidad_medida: String(item.unidad_medida || ''),
-            partida: String(item.partida || ''),
-            clave_catalogo: String(item.clave_catalogo || '')
-          };
-        });
+        ocrItems = window._ocrExtractedItems;
+        console.log('[Intake] Empaquetando', ocrItems.length, 'ítems del buffer OCR.');
       }
 
-      // 4. Construir Payload Único - OBJETO DIRECTO (NO string JSON)
+      // 4. Construir Payload Único
       var payload = {
         fileId: currentFileId,
         formData: formData,
         ocrItems: ocrItems
       };
 
-      // VALIDAR payload ANTES de enviar
-      if (!payload.fileId || !payload.formData.oficio_solicitud || !payload.formData.fecha_recepcion) {
-        throw new Error('Payload incompleto: faltan campos requeridos (fileId, oficio_solicitud, fecha_recepcion).');
-      }
+      // 5. Delegar a la función de envío transaccional
+      await submitOcrIntakeToSheet(payload);
 
-      console.log('[handleProcessIntake] 🚀 ENVIANDO payload:', JSON.stringify({ fileId: payload.fileId, formDataKeys: Object.keys(payload.formData), ocrItemsCount: payload.ocrItems.length }));
-
-      // 5. LLAMADA ESTANDARIZADA con AsyncRunner
-      // El payload se envía COMO OBJETO directamente como argumento de google.script.run
-      var res = await AsyncRunner.run('processIntake', payload);
-
-      console.log('[handleProcessIntake] ✅ Respuesta:', res);
-
-      if (res && res.success) {
-        // Limpiar estado
-        window._selectedFileId = null;
-        window._ocrExtractedItems = null;
-        localStorage.removeItem('hcg_last_file_id');
-        if (hiddenInput) hiddenInput.value = '';
-        if (form) delete form.dataset.fileId;
-        
-        Toast.show('✅ ¡Folio generado: ' + res.folio);
-        setTimeout(function() { navigateMenu(null, 'ui/modules/View_Solicitudes'); }, 1000);
-      } else {
-        throw new Error(res ? res.error : 'Error desconocido en el servidor');
-      }
     } catch (err) {
-      console.error('[handleProcessIntake] 💥 Error:', err);
-      Toast.show('❌ Error: ' + (err.message || err));
       btn.disabled = false;
       btn.innerHTML = originalText;
     }
   }
 
   // Exponer a global explicitamente
+  window.submitOcrIntakeToSheet = submitOcrIntakeToSheet;
   window.handleProcessIntake = handleProcessIntake;
 
 
