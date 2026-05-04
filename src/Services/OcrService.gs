@@ -7,8 +7,8 @@
  * y normalización de tablas basada en auditoría documental.
  */
 const OcrService = (() => {
-  /** @const {string} Modelo: Gemini 2.5 Flash (producción, multimodal, rápido) */
-  const MODEL_ID = "gemini-2.5-flash";
+  /** @const {string} Modelo: Gemini 1.5 Flash (producción, multimodal, rápido) */
+  const MODEL_ID = "gemini-1.5-flash";
 
   /** @const {string} Base URL del endpoint REST de Gemini */
   const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -235,13 +235,21 @@ toda la información aplicando las siguientes REGLAS DE ORO con precisión quir�
     // 4. Manejo de errores HTTP
     if (responseCode !== 200) {
       let errorMessage = `Error Gemini API (${responseCode})`;
+      let errorDetail = "";
       try {
         const errorObj = JSON.parse(responseBody);
-        errorMessage += ": " + (errorObj.error?.message || "Error desconocido");
+        errorDetail = errorObj.error?.message || "Error desconocido";
+        errorMessage += ": " + errorDetail;
+
+        // Log detallado para diagnóstico de cuotas o seguridad
+        if (errorObj.error?.status) {
+          console.error("[OcrService] Status: %s, Details: %j", errorObj.error.status, errorObj.error.details || []);
+        }
       } catch (_) {
-        errorMessage += ": " + responseBody.substring(0, 200);
+        errorDetail = responseBody.substring(0, 200);
+        errorMessage += ": " + errorDetail;
       }
-      console.error("[OcrService]", errorMessage);
+      console.error("[OcrService] HTTP %s - %s", responseCode, errorMessage);
       throw new Error(errorMessage);
     }
 

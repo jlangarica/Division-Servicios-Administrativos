@@ -211,13 +211,20 @@
         .setMode(google.picker.DocsViewMode.LIST) // Recomendado por la doc oficial para drive.file
         .setSelectFolderEnabled(false);
 
+      // Determinar el origin de forma robusta
+      let origin = google.script.host.origin;
+      if (!origin || origin === 'null') {
+        // Fallback para ciertos entornos de ejecución
+        origin = window.location.protocol + '//' + window.location.host;
+      }
+
       const picker = new google.picker.PickerBuilder()
         .addView(uploadView)
         .addView(docsView)
         .setOAuthToken(config.oauthToken)
         .setDeveloperKey(config.developerKey)
         .setAppId(config.projectNumber)
-        .setOrigin(google.script.host.origin)
+        .setOrigin(origin)
         .setTitle('Gestión Documental HCG — Seleccionar Oficio')
         .enableFeature(google.picker.Feature.NAV_HIDDEN)
         .setCallback(window.handlePickerResult)
