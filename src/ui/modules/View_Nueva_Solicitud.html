@@ -209,13 +209,11 @@
         .addView(docsView)
         .setOAuthToken(config.oauthToken)
         .setDeveloperKey(config.developerKey)
-        .setAppId(config.projectNumber)      // <-- Actualizado a projectNumber
-        .setOrigin(window.location.protocol + '//' + window.location.host) // <-- Origen robusto
+        .setAppId(config.projectNumber)
+        .setOrigin(window.location.origin)
         .setTitle('Gestión Documental HCG — Seleccionar Oficio')
-        .enableFeature(google.picker.Feature.NAV_HIDDEN) // UI más limpia según doc
-        .setCallback(function(result) {
-          handlePickerResult(result, config, btn, originalText);
-        })
+        .enableFeature(google.picker.Feature.NAV_HIDDEN)
+        .setCallback(window.handlePickerResult)
         .setSize(600, 450)
         .build();
 
@@ -231,104 +229,104 @@
   }
 
   /**
-   * Callback del Google Picker.
+   * Callback del Google Picker (Global para evitar pérdida de referencia)
    * Maneja las acciones PICKED (archivo seleccionado) y CANCEL.
    */
-  async function handlePickerResult(pickerData, config, btn, originalText) {
-    const action = pickerData[google.picker.Response.ACTION];
-    console.log('[Picker] Callback recibido. Acción:', action);
+  window.handlePickerResult = function(result) {
+    console.log("=== PICKER CALLBACK DISPARADO ===");
+    console.log("Acción:", result.action);
 
-    // Usuario canceló — desbloquear UI
-    if (action === google.picker.Action.CANCEL) {
-      btn.disabled = false;
-      btn.innerHTML = originalText;
-      document.body.classList.remove('is-syncing');
-      return;
-    }
+    if (result.action === google.picker.Action.PICKED) {
+      const doc = result.docs[0];
+      const fileId = doc.id;
+      const fileName = doc.name;
+      console.log("FileId capturado:", fileId);
+      
+      // UI feedback inmediato
+      Toast.show('📂 Archivo recibido: ' + fileName);
+      
+      // Renderizar preview
+      const iframe = document.getElementById('pdf-iframe');
+      if (iframe) iframe.src = 'https://drive.google.com/file/d/' + fileId + '/preview';
+      const emptyState = document.getElementById('pdf-empty-state');
+      if (emptyState) emptyState.style.display = 'none';
+      document.getElementById('pdf-viewer-container').style.display = 'flex';
 
-    // No es un PICKED — ignorar otros eventos intermedios
-    if (action !== google.picker.Action.PICKED) {
-      console.log('[Picker] Acción ignorada:', action);
-      return;
-    }
+      // Inicia el stepper visual
+      startProcessStepper();
 
-    const doc = pickerData[google.picker.Response.DOCUMENTS][0];
-    if (!doc) {
-      Toast.show('❌ Error: No se recibió información del archivo');
-      return;
-    }
+      // LLAMADA CRÍTICA AL SERVIDOR
+      google.script.run
+        .withSuccessHandler(ocrResult => {
+          console.log("Servidor respondió:", ocrResult);
+          
+          if (ocrResult && !ocrResult.error) {
+            completeProcessStepper(true);
+            Toast.show('✅ Análisis completado');
 
-    // Extraer ID con fallback
-    const fileId = doc[google.picker.Document.ID] || doc.id;
-    const fileName = doc[google.picker.Document.NAME] || doc.name;
+            const fill = (id, val, delay) => setTimeout(() => {
+              const el = document.getElementById(id);
+              if (el && val) {
+                el.value = val;
+                el.classList.add('field-filled');
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            }, delay);
 
-    console.log('[Picker] Archivo detectado:', fileName, 'ID:', fileId);
-    Toast.show('📂 Archivo recibido: ' + fileName);
+            fill('intake-oficio', ocrResult.numero_oficio_solicitud, 200);
+            fill('intake-servicio', ocrResult.servicio_solicitante, 400);
+            fill('intake-fecha', ocrResult.fecha_sello_recepcion || ocrResult.fecha_elaboracion, 600);
 
-    if (!fileId) {
-      Toast.show('⚠️ Error: ID de archivo nulo');
-      btn.disabled = false;
-      btn.innerHTML = originalText;
-      document.body.classList.remove('is-syncing');
-      return;
-    }
+            if (ocrResult.es_negativa) {
+              setTimeout(() => {
+                const chk = document.getElementById('intake-has-negativa');
+                if (chk) {
+                  chk.checked = true;
+                  chk.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                fill('intake-fecha-negativa', ocrResult.fecha_hora_negativa?.split(' ')[0], 100);
+              }, 800);
+            }
 
-    // Renderizar preview
-    const iframe = document.getElementById('pdf-iframe');
-    iframe.src = 'https://drive.google.com/file/d/' + fileId + '/preview';
-    const emptyState = document.getElementById('pdf-empty-state');
-    if (emptyState) emptyState.style.display = 'none';
-    document.getElementById('pdf-viewer-container').style.display = 'flex';
-
-    // Iniciar Stepper
-    btn.innerHTML = '🤖 Procesando...';
-    startProcessStepper();
-
-    try {
-      console.log('[OCR] Iniciando RPC con fileId:', fileId);
-      const ocrResult = await AsyncRunner.run('processOcrEndpoint', fileId);
-
-      // Manejo de Respuesta
-      if (ocrResult && !ocrResult.error) {
-        completeProcessStepper(true);
-        Toast.show('✅ Análisis completado');
-
-        const fill = (id, val, delay) => setTimeout(() => {
-          const el = document.getElementById(id);
-          if (el && val) {
-            el.value = val;
-            el.classList.add('field-filled');
-            el.dispatchEvent(new Event('change', { bubbles: true }));
+            _ocrExtractedItems = ocrResult.items || [];
+          } else {
+            console.error("Error en respuesta OCR:", ocrResult?.error);
+            completeProcessStepper(false);
+            Toast.show('❌ Error: ' + (ocrResult?.error || 'Respuesta inválida'));
           }
-        }, delay);
+          
+          // Desbloquear UI
+          const btn = document.getElementById('btn-submit-intake');
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = 'Iniciar Gestión DSA';
+          }
+          document.body.classList.remove('is-syncing');
+        })
+        .withFailureHandler(err => {
+          console.error("ERROR CRÍTICO EN EL SERVIDOR:", err);
+          completeProcessStepper(false);
+          Toast.show('❌ Error de conexión con el servidor');
+          
+          // Desbloquear UI
+          const btn = document.getElementById('btn-submit-intake');
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = 'Iniciar Gestión DSA';
+          }
+          document.body.classList.remove('is-syncing');
+        })
+        .processOcrEndpoint(fileId); 
 
-        fill('intake-oficio', ocrResult.numero_oficio_solicitud, 200);
-        fill('intake-servicio', ocrResult.servicio_solicitante, 400);
-        fill('intake-fecha', ocrResult.fecha_sello_recepcion || ocrResult.fecha_elaboracion, 600);
-
-        if (ocrResult.es_negativa) {
-          setTimeout(() => {
-            const chk = document.getElementById('intake-has-negativa');
-            chk.checked = true;
-            chk.dispatchEvent(new Event('change', { bubbles: true }));
-            fill('intake-fecha-negativa', ocrResult.fecha_hora_negativa?.split(' ')[0], 100);
-          }, 800);
-        }
-
-        _ocrExtractedItems = ocrResult.items || [];
-      } else {
-        throw new Error(ocrResult?.error || 'Respuesta inválida del servidor');
-      }
-    } catch (err) {
-      console.error('OCR Error:', err);
-      completeProcessStepper(false);
-      Toast.show('❌ Error en la IA: ' + err.message);
-    } finally {
-      btn.disabled = false;
-      btn.innerHTML = originalText;
+    } else if (result.action === google.picker.Action.CANCEL) {
       document.body.classList.remove('is-syncing');
+      const btn = document.getElementById('btn-submit-intake');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = 'Iniciar Gestión DSA';
+      }
     }
-  }
+  };
 
 
   // ────────────────────────────────────────────────────────
