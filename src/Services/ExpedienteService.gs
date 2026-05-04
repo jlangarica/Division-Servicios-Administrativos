@@ -26,10 +26,13 @@
  * @returns {Object} Respuesta {success, folio, viewUrl, fileId, error}
  */
 function processIntake(payload) {
+  // 0. Debug Log — Ver exactamente qué llega desde el navegador
+  console.log('[processIntake] Payload recibido:', JSON.stringify(payload));
+
   // 1. Validación exhaustiva
   if (!payload) return { success: false, error: 'No se recibió ningún dato (payload null).' };
-  if (!payload.fileId) return { success: false, error: 'Falta el identificador del archivo (fileId missing).' };
-  if (!payload.formData) return { success: false, error: 'Faltan los datos del formulario (formData missing).' };
+  if (!payload.fileId) return { success: false, error: 'Falta el identificador del archivo PDF.' };
+  if (!payload.formData) return { success: false, error: 'Faltan los datos del formulario.' };
 
   const { fileId, formData } = payload;
   const requiredFields = ['tipo_tramite', 'fecha_recepcion', 'servicio_solicitante', 'oficio_solicitud'];

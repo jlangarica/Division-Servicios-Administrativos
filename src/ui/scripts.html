@@ -622,6 +622,12 @@ function renderPDF(data) {
 async function handleProcessIntake(event) {
   event.preventDefault();
 
+  // 🛡️ Guardia: Validar que hay un archivo seleccionado antes de intentar el envío
+  if (!window._selectedFileId) {
+    Toast.show('⚠️ Primero selecciona el oficio PDF usando el botón de carga.');
+    return;
+  }
+
   const btn = document.getElementById('btn-submit-intake');
   btn.classList.add('loading');
   
@@ -637,7 +643,7 @@ async function handleProcessIntake(event) {
         atiende: AppState.user.email
       },
       // FileId del documento subido via Google Picker (usando scope global window)
-      fileId: window._selectedFileId || null,
+      fileId: window._selectedFileId,
       // Items extraídos previamente por Gemini (usando scope global window)
       ocrItems: window._ocrExtractedItems || []
     };
@@ -649,13 +655,18 @@ async function handleProcessIntake(event) {
     const res = await AsyncRunner.run('processIntake', payload);
     
     if (res.success) {
-      Toast.show('¡Folio generado: ' + res.folio);
+      // ✅ Limpiar estado global tras éxito
+      window._selectedFileId = null;
+      window._ocrExtractedItems = null;
+      
+      Toast.show('✅ ¡Folio generado: ' + res.folio);
       navigateMenu(null, 'ui/modules/View_Solicitudes');
     } else {
-      Toast.show('Error: ' + res.error);
+      Toast.show('❌ Error: ' + res.error);
     }
   } catch (err) {
-    Toast.show('Error de red');
+    console.error('[handleProcessIntake] Error:', err);
+    Toast.show('❌ Error de red o conexión');
   } finally {
     btn.classList.remove('loading');
   }

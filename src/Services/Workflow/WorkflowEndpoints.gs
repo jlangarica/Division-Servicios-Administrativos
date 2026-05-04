@@ -137,16 +137,5 @@ function processOcrEndpoint(fileId) {
   } catch (e) {
     console.error('ERROR EN OCR ENDPOINT: %s', e.message);
     return { success: false, error: e.message };
-
-  } finally {
-    // 4. Clean-up Atómico — SIEMPRE mover a papelera
-    if (driveFile) {
-      try {
-        driveFile.setTrashed(true);
-        console.log('[OCR Endpoint] Archivo efímero eliminado: %s', fileId);
-      } catch (trashError) {
-        console.error('[OCR Endpoint] FALLO al eliminar archivo temporal:', trashError.message);
-      }
-    }
   }
 }
