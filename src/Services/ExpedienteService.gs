@@ -27,14 +27,19 @@
  */
 function processIntake(payload) {
   // 0. Debug Log — Ver exactamente qué llega desde el navegador
-  console.log('[processIntake] Payload recibido:', JSON.stringify(payload));
+  console.log('[processIntake] Raw Payload:', payload);
+  if (typeof payload === 'string') {
+    try { payload = JSON.parse(payload); } catch(e) {}
+  }
 
-  // 1. Validación exhaustiva
+  // 1. Validación exhaustiva de propiedades raíz
   if (!payload) return { success: false, error: 'No se recibió ningún dato (payload null).' };
-  if (!payload.fileId) return { success: false, error: 'Falta el identificador del archivo PDF.' };
-  if (!payload.formData) return { success: false, error: 'Faltan los datos del formulario.' };
+  
+  const fileId = payload.fileId || payload._selectedFileId; // Tolerancia a nombres
+  const formData = payload.formData;
 
-  const { fileId, formData } = payload;
+  if (!fileId) return { success: false, error: 'Falta el identificador del archivo PDF.' };
+  if (!formData) return { success: false, error: 'Faltan los datos del formulario.' };
   const requiredFields = ['tipo_tramite', 'fecha_recepcion', 'servicio_solicitante', 'oficio_solicitud'];
   
   for (const field of requiredFields) {
