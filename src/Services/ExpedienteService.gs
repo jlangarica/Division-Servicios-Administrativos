@@ -336,3 +336,79 @@ function getFolioDetails(uuid) {
     return null;
   }
 }
+
+/**
+ * Procesa en lote los bienes/servicios extraídos vía OCR y los vincula a un folio.
+ * Implementa LockService para garantizar la exclusión mutua durante la escritura masiva.
+ * 
+ * @param {Object} payloadData - Payload con formData, ocrItems y fileId.
+ * @returns {Object} ResponseDTO {success, folio, uuid, error}
+ */
+function processOcrItemsBatch(payloadData) {
+  const lock = LockService.getScriptLock();
+  console.log('[processOcrItemsBatch] Iniciando transacción de lote...');
+  
+  try {
+    // 1. Bloqueo de concurrencia (15s)
+    lock.waitLock(15000);
+
+    // 2. Ejecutar la creación del folio (proceso base)
+    // Nota: processIntake ya gestiona su propia atomicidad para el folio.
+    const intakeRes = processIntake(payloadData);
+    if (!intakeRes.success) throw new Error(intakeRes.error);
+
+    const uuid = intakeRes.uuid;
+    const items = payloadData.ocrItems || [];
+
+    if (items.length > 0) {
+      const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
+      const sheetBienes = ss.getSheetByName(SHEETS.BIENES) || ss.insertSheet(SHEETS.BIENES);
+      
+      // Asegurar cabeceras si la hoja es nueva
+      if (sheetBienes.getLastRow() === 0) {
+        sheetBienes.appendRow(['UUID_Folio', 'CodigoInsumo', 'Descripcion', 'CantidadSolicitada', 'UnidadMedida', 'ClaveCatalogo']);
+      }
+
+      // 3. Mapear items a matriz 2D: [[UUID_Folio, CodigoInsumo, Descripcion, CantidadSolicitada, UnidadMedida, ClaveCatalogo]]
+      const matrix = items.map(item => [
+        uuid,
+        String(item.codigo_insumo || ''),
+        String(item.descripcion || ''),
+        String(item.cantidad_solicitada || ''),
+        String(item.unidad_medida || ''),
+        String(item.clave_catalogo || '')
+      ]);
+
+      // 4. Escritura en Batch (getLastRow + 1)
+      const lastRow = sheetBienes.getLastRow();
+      sheetBienes.getRange(lastRow + 1, 1, matrix.length, 6).setValues(matrix);
+
+      // 5. Auditoría en Hoja 'Flujo' (Objeto de Auditoría punto [3])
+      const sheetFlujo = ss.getSheetByName(SHEETS.FLUJO);
+      if (sheetFlujo) {
+        const atiende = payloadData.formData.atiende || 'SISTEMA';
+        const auditLog = [
+          uuid,
+          new Date(),
+          'OCR_EXTRACTION',
+          'S01_RECEPCION',
+          'S01_RECEPCION',
+          atiende,
+          `Registro de ${items.length} insumos/servicios vía Gemini`
+        ];
+        sheetFlujo.appendRow(auditLog);
+      }
+      
+      console.log(`[processOcrItemsBatch] Se registraron ${items.length} bienes para el folio ${intakeRes.folio}`);
+    }
+
+    SpreadsheetApp.flush();
+    return intakeRes;
+
+  } catch (err) {
+    console.error('[ExpedienteService] processOcrItemsBatch Failure:', err);
+    return { success: false, error: 'Error en procesamiento por lotes: ' + err.message };
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
