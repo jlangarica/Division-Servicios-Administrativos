@@ -381,7 +381,7 @@ function processOcrItemsBatch(payloadData) {
         String(item.descripcion || ''),       // 4. descripcion
         String(item.unidad_medida || ''),     // 5. unidad_medida
         String(item.cantidad_solicitada || ''), // 6. cantidad_solicitada
-        String(item.partida || ''),           // 7. partida_presupuestal
+        '',                                   // 7. partida_presupuestal
         '',                                   // 8. precio_unitario_sin_iva
         '',                                   // 9. subtotal
         '',                                   // 10. iva

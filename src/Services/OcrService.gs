@@ -105,16 +105,6 @@ toda la información aplicando las siguientes REGLAS DE ORO con precisión quir�
           type: "object",
           properties: {
             codigo_insumo: { type: "string" },
-            partida: {
-              type: "string",
-              nullable: true,
-              description: "Columna PARTIDA (ej. 2161)",
-            },
-            clave_catalogo: {
-              type: "string",
-              nullable: true,
-              description: "Código XXX.XXX.XXXX",
-            },
             descripcion: {
               type: "string",
               description: "Texto completo y unificado del bien",
