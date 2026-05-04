@@ -78,13 +78,11 @@
 
     <div class="card" style="padding: 24px;">
       <form id="form-nueva-solicitud" onsubmit="handleProcessIntake(event)">
-        <!-- Respaldo de FileId para evitar pérdida de estado -->
-        <input type="hidden" id="hidden-file-id" value="">
-
         <div style="display:grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 20px;">
           <h3 style="font-size:14px; font-weight:800; color:var(--color-neutral-900); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px;">Metadatos del Oficio</h3>
           
           <input type="hidden" id="intake-tipo" value="COMPRA POR FONDO">
+          <input type="hidden" id="hidden-file-id" value="">
 
           <div class="glass-input-group">
             <label class="glass-input-label">Número de Oficio</label>
@@ -246,11 +244,11 @@
       const fileId = String(doc.id);
       const fileName = doc.name;
 
-      // Persistencia en estado global y respaldo en DOM
+      // Persistencia en estado global Y en DOM (defensa en profundidad)
       window._selectedFileId = fileId;
-      const hiddenInput = document.getElementById('hidden-file-id');
+      var hiddenInput = document.getElementById('hidden-file-id');
       if (hiddenInput) hiddenInput.value = fileId;
-      console.log("✅ ID de Archivo persistido:", window._selectedFileId);
+      console.log("✅ ID de Archivo persistido:", window._selectedFileId, "| hidden:", fileId);
 
       // Inicia el stepper visual (UNA sola vez)
       startProcessStepper();
