@@ -18,6 +18,11 @@ const CONFIG = (function() {
     console.warn('[Config] Falta GEMINI_API_KEY en ScriptProperties. El OCR con IA no funcionará.');
   }
 
+  // Validación no-bloqueante de credenciales Supabase
+  if (!props.SUPABASE_URL || !props.SUPABASE_KEY) {
+    console.warn('[Config] Faltan SUPABASE_URL / SUPABASE_KEY en ScriptProperties. El historial de proveedores no funcionará.');
+  }
+
   return {
     /** ID del Spreadsheet de configuración */
     SS_CONFIG_ID: props.SS_CONFIG_ID || '1BsQLunCnWlkRJZUOgXy3mBuRlQZ8EovR7vfN4E6zTHI',
@@ -38,7 +43,13 @@ const CONFIG = (function() {
     GOOGLE_DEV_KEY: props.GOOGLE_DEV_KEY || '',
 
     /** Número de Proyecto de Google Cloud (AppId). Requerido por la doc oficial. */
-    GOOGLE_PROJECT_NUMBER: props.GOOGLE_PROJECT_NUMBER || ''
+    GOOGLE_PROJECT_NUMBER: props.GOOGLE_PROJECT_NUMBER || '',
+
+    /** URL base del proyecto Supabase (PostgREST). Se lee de PropertiesService. */
+    SUPABASE_URL: props.SUPABASE_URL || '',
+
+    /** Clave de autenticación de Supabase (anon o service_role). Se lee de PropertiesService. */
+    SUPABASE_KEY: props.SUPABASE_KEY || ''
   };
 })();
 
