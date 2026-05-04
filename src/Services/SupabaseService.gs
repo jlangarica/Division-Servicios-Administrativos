@@ -9,7 +9,7 @@
 
 const SupabaseService = (() => {
   /** Nombre de la tabla en Supabase (schema público) */
-  const TABLE_NAME = 'historial_compras';
+  const TABLE_NAME = 'Historico';
 
   /**
    * Valida que las credenciales de Supabase estén configuradas.
