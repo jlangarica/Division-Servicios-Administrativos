@@ -217,16 +217,29 @@ const AsyncRunner = (() => {
   return {
     /**
      * Ejecuta una función del servidor de forma asíncrona.
+     * PATRÓN CRÍTICO: Para payloads grandes (>1KB), usar google.script.run.withUserObject()
+     * para evitar que GAS pierda argumentos string grandes.
+     * 
      * @param {string} methodName Nombre de la función en el servidor.
      * @param {...any} args Argumentos para la función.
      * @returns {Promise<any>} Promesa con el resultado del servidor.
      */
     run(methodName, ...args) {
       return new Promise((resolve, reject) => {
-        google.script.run
+        const serverCall = google.script.run
           .withSuccessHandler((res) => resolve(res))
-          .withFailureHandler((err) => reject(err))
-          [methodName](...args);
+          .withFailureHandler((err) => reject(err));
+        
+        // OPTIMIZACIÓN CRÍTICA:
+        // - Si hay 1 argumento string grande (JSON > 500 chars), usar withUserObject
+        // - Esto evita el bug de google.script.run que pierde el primer argumento string
+        if (args.length === 1 && typeof args[0] === 'string' && args[0].length > 500) {
+          console.log('[AsyncRunner] Usando withUserObject para payload grande (%s chars)', args[0].length);
+          serverCall.withUserObject(args[0])[methodName]();
+        } else {
+          // Múltiples argumentos o payload pequeño → llamada directa
+          serverCall[methodName](...args);
+        }
       });
     }
   };

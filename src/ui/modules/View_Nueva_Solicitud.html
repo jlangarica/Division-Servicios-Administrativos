@@ -440,6 +440,7 @@
       console.log('[handleProcessIntake] 🚀 ENVIANDO → fileId:', currentFileId, '| payload length:', payloadJson.length);
 
       // ── LLAMADA ESTANDARIZADA con AsyncRunner (consistente con la SPA) ──
+      // AsyncRunner detecta automáticamente payloads grandes y usa withUserObject
       var res = await AsyncRunner.run('processIntake', payloadJson);
 
       console.log('[handleProcessIntake] ✅ Respuesta servidor:', res);
