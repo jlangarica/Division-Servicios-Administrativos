@@ -20,25 +20,25 @@
 function processIntake(payloadJson) {
   // 0. Debug Log — Ver exactamente que llega desde el navegador
   console.log('[processIntake] INICIO — Firma unificada (1 argumento JSON)');
-  console.log('[processIntake] payloadJson type:', typeof payloadJson);
-  console.log('[processIntake] payloadJson length:', payloadJson ? payloadJson.length : 'NULL');
+  console.log('[processIntake] Raw payload type:', typeof payloadJson);
   
-  if (!payloadJson || typeof payloadJson !== 'string' || payloadJson.trim() === '') {
-    console.error('[processIntake] payloadJson VACIO o invalido - valor:', payloadJson);
-    return { success: false, error: 'Payload vacio o invalido.' };
-  }
-  
-  console.log('[processIntake] payloadJson primeros 500 chars:', payloadJson.substring(0, 500));
-
-  // 1. Parsear payload unificado
   var payload;
-  try {
-    payload = JSON.parse(payloadJson);
-    console.log('[processIntake] JSON parseado exitosamente');
-  } catch (e) {
-    console.error('[processIntake] Error parseando payloadJson:', e.message);
-    console.error('[processIntake] payloadJson recibido (primeros 500 chars):', payloadJson ? payloadJson.substring(0, 500) : 'NULL');
-    return { success: false, error: 'Payload invalido (JSON corrupto): ' + e.message };
+
+  // 1. Manejo resiliente del payload (Apps Script a veces auto-parsea JSON)
+  if (typeof payloadJson === 'object' && payloadJson !== null) {
+    console.log('[processIntake] El payload ya llegó como objeto. Saltando JSON.parse.');
+    payload = payloadJson;
+  } else if (typeof payloadJson === 'string' && payloadJson.trim() !== '') {
+    try {
+      console.log('[processIntake] Parseando payload JSON (Length: %s)', payloadJson.length);
+      payload = JSON.parse(payloadJson);
+    } catch (e) {
+      console.error('[processIntake] Error parseando payloadJson:', e.message);
+      return { success: false, error: 'Payload inválido (JSON corrupto): ' + e.message };
+    }
+  } else {
+    console.error('[processIntake] Payload VACÍO o de tipo inesperado:', typeof payloadJson);
+    return { success: false, error: 'Payload vacío o inválido.' };
   }
 
   var fileId = payload.fileId;
