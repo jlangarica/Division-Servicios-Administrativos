@@ -3,11 +3,6 @@
  */
 
 /**
- * @typedef {Object} FileData
- * @property {string} base64
- * @property {string} fileName
- * @property {string} mimeType
- *
  * @typedef {Object} FormData
  * @property {string} tipo_tramite
  * @property {string} fecha_recepcion
@@ -18,34 +13,31 @@
  * @property {string} [fecha_negativa]
  *
  * @typedef {Object} IntakeDTO
- * @property {FileData} fileData
+ * @property {string} fileId - ID del archivo en Drive (subido via Picker)
  * @property {FormData} formData
+ * @property {Array} [ocrItems] - Items extraídos por Gemini AI
  */
 
 /**
  * Registra el ingreso de un oficio, creando una entidad digital centralizada.
  * Utiliza LockService para garantizar la atomicidad del folio.
  *
- * @param {IntakeDTO} payload Datos desde el Frontend.
+ * @param {{ fileId: string, formData: Object, ocrItems: Array }} payload Datos desde el Frontend.
  * @returns {Object} Respuesta {success, folio, viewUrl, fileId, error}
  */
 function processIntake(payload) {
-  // 1. Validación exhaustiva
-  if (!payload?.fileData?.base64 || !payload?.formData) {
-    return { success: false, error: 'Información de registro incompleta.' };
+  // 1. Validación exhaustiva — ahora espera fileId (de Picker), no base64
+  if (!payload?.fileId || !payload?.formData) {
+    return { success: false, error: 'Información de registro incompleta (fileId o formData faltante).' };
   }
 
-  const { fileData, formData } = payload;
+  const { fileId, formData } = payload;
   const requiredFields = ['tipo_tramite', 'fecha_recepcion', 'servicio_solicitante', 'oficio_solicitud'];
   
   for (const field of requiredFields) {
     if (!formData[field]?.trim()) {
       return { success: false, error: `El campo [${field}] es obligatorio.` };
     }
-  }
-
-  if (fileData.mimeType !== 'application/pdf') {
-    return { success: false, error: 'Solo se permiten archivos en formato PDF.' };
   }
 
   const lock = LockService.getScriptLock();
@@ -74,13 +66,23 @@ function processIntake(payload) {
     const [y, m, d] = formData.fecha_recepcion.split('-');
     const fechaFormateada = (y && m && d) ? `${d}/${m}/${y}` : formData.fecha_recepcion;
 
-    // 4. Operaciones en Google Drive
+    // 4. Operaciones en Google Drive — Mover archivo de buffer a carpeta expediente
     const rootFolder = DriveApp.getFolderById(DRIVE_CONFIG.EXPEDIENTES_FOLDER_ID);
     const expedienteFolder = rootFolder.createFolder(`Folio_${folioDsa}_DSA`);
     
-    const decodedFile = Utilities.base64Decode(fileData.base64);
-    const blob = Utilities.newBlob(decodedFile, fileData.mimeType, `Oficio_${folioDsa}_${fileData.fileName}`);
+    const sourceFile = DriveApp.getFileById(fileId);
+    const fileName = sourceFile.getName();
+    const blob = sourceFile.getBlob();
+    blob.setName(`Oficio_${folioDsa}_${fileName}`);
     const file = expedienteFolder.createFile(blob);
+
+    // Limpiar archivo temporal del buffer (si existe en carpeta buffer)
+    try {
+      sourceFile.setTrashed(true);
+      console.log('[processIntake] Archivo buffer eliminado: %s', fileId);
+    } catch (trashErr) {
+      console.warn('[processIntake] No se pudo eliminar archivo buffer:', trashErr.message);
+    }
     
     // 5. Persistencia Atómica en Sheet 'Expedientes'
     const timestamp = new Date();
