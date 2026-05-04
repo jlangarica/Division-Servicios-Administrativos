@@ -382,53 +382,53 @@
 
     try {
       // ── Construir formData SIMPLE (solo strings primitivos) ──
-      const tipoTramite = document.getElementById('intake-tipo').value || '';
-      const fechaRecepcion = document.getElementById('intake-fecha').value || '';
-      const servicioSolicitante = document.getElementById('intake-servicio').value || '';
-      const oficioSolicitud = document.getElementById('intake-oficio').value || '';
-      const atiende = AppState.user.email || '';
-      const tieneNegativa = document.getElementById('intake-has-negativa').checked;
-      const fechaNegativa = tieneNegativa ? (document.getElementById('intake-fecha-negativa').value || '') : '';
+      var tipoTramite = document.getElementById('intake-tipo').value || '';
+      var fechaRecepcion = document.getElementById('intake-fecha').value || '';
+      var servicioSolicitante = document.getElementById('intake-servicio').value || '';
+      var oficioSolicitud = document.getElementById('intake-oficio').value || '';
+      var atiende = AppState.user.email || '';
+      var tieneNegativa = document.getElementById('intake-has-negativa').checked;
+      var fechaNegativa = tieneNegativa ? (document.getElementById('intake-fecha-negativa').value || '') : '';
       
       // ── Construir ocrItems como array SIMPLE de objetos literales ──
-      let ocrItemsSimple = [];
+      var ocrItemsSimple = [];
       if (window._ocrExtractedItems && Array.isArray(window._ocrExtractedItems)) {
-        ocrItemsSimple = window._ocrExtractedItems.map(function(item) {
-          return {
+        for (var i = 0; i < window._ocrExtractedItems.length; i++) {
+          var item = window._ocrExtractedItems[i];
+          ocrItemsSimple.push({
             key: String(item.key || ''),
             value: String(item.value || '')
-          };
-        });
+          });
+        }
       }
 
-      // ── Construir payload JSON MANUALMENTE para evitar problemas de serialización ──
-      var payloadJson = '{' +
-        '"fileId":"' + currentFileId.replace(/"/g, '\\"') + '",' +
-        '"formData":{' +
-          '"tipo_tramite":"' + tipoTramite.replace(/"/g, '\\"') + '",' +
-          '"fecha_recepcion":"' + fechaRecepcion.replace(/"/g, '\\"') + '",' +
-          '"servicio_solicitante":"' + servicioSolicitante.replace(/"/g, '\\"') + '",' +
-          '"oficio_solicitud":"' + oficioSolicitud.replace(/"/g, '\\"') + '",' +
-          '"atiende":"' + atiende.replace(/"/g, '\\"') + '"';
+      // ── Construir payload object y usar JSON.stringify ──
+      var payloadObj = {
+        fileId: currentFileId,
+        formData: {
+          tipo_tramite: tipoTramite,
+          fecha_recepcion: fechaRecepcion,
+          servicio_solicitante: servicioSolicitante,
+          oficio_solicitud: oficioSolicitud,
+          atiende: atiende
+        },
+        ocrItems: ocrItemsSimple
+      };
       
+      // Agregar campos opcionales solo si aplican
       if (tieneNegativa) {
-        payloadJson += ',"tiene_negativa":true';
+        payloadObj.formData.tiene_negativa = true;
         if (fechaNegativa) {
-          payloadJson += ',"fecha_negativa":"' + fechaNegativa.replace(/"/g, '\\"') + '"';
+          payloadObj.formData.fecha_negativa = fechaNegativa;
         }
       }
       
-      payloadJson += '},"ocrItems":[';
-      for (var i = 0; i < ocrItemsSimple.length; i++) {
-        if (i > 0) payloadJson += ',';
-        payloadJson += '{"key":"' + ocrItemsSimple[i].key.replace(/"/g, '\\"') + '","value":"' + ocrItemsSimple[i].value.replace(/"/g, '\\"') + '"}';
-      }
-      payloadJson += ']}}';
-
+      var payloadJson = JSON.stringify(payloadObj);
       console.log('[handleProcessIntake] 🚀 ENVIANDO → fileId:', currentFileId, '| payload length:', payloadJson.length);
+      console.log('[handleProcessIntake] 📦 payloadJson:', payloadJson);
 
       // ── LLAMADA DIRECTA con google.script.run (1 solo argumento JSON) ──
-      const res = await new Promise(function(resolve, reject) {
+      var res = await new Promise(function(resolve, reject) {
         google.script.run
           .withSuccessHandler(function(result) { resolve(result); })
           .withFailureHandler(function(error) { reject(error); })
