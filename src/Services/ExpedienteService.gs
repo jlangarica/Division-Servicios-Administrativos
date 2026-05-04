@@ -18,9 +18,8 @@
  * @returns {Object} Respuesta {success, folio, viewUrl, fileId, error}
  */
 function processIntake(payloadJson) {
-  // 0. Debug Log — Ver exactamente que llega desde el navegador
-  console.log('[processIntake] INICIO — Firma unificada (1 argumento JSON)');
-  console.log('[processIntake] Raw payload type:', typeof payloadJson);
+  // 0. Debug Log
+  console.log('[processIntake] INICIO - payloadJson recibido (length):', payloadJson ? (typeof payloadJson === 'string' ? payloadJson.length : 'OBJECT') : 'NULL');
   
   var payload;
 
@@ -30,30 +29,32 @@ function processIntake(payloadJson) {
     payload = payloadJson;
   } else if (typeof payloadJson === 'string' && payloadJson.trim() !== '') {
     try {
-      console.log('[processIntake] Parseando payload JSON (Length: %s)', payloadJson.length);
       payload = JSON.parse(payloadJson);
+      console.log('[processIntake] Payload parseado exitosamente');
     } catch (e) {
-      console.error('[processIntake] Error parseando payloadJson:', e.message);
-      return { success: false, error: 'Payload inválido (JSON corrupto): ' + e.message };
+      console.error('[processIntake] ERROR PARSEANDO JSON:', e.message);
+      console.error('[processIntake] JSON recibido (recorte):', payloadJson.substring(0, 500));
+      return { success: false, error: 'JSON inválido: ' + e.message };
     }
   } else {
-    console.error('[processIntake] Payload VACÍO o de tipo inesperado:', typeof payloadJson);
+    console.error('[processIntake] PAYLOAD VACÍO O INVÁLIDO');
     return { success: false, error: 'Payload vacío o inválido.' };
   }
 
   var fileId = payload.fileId;
   var formData = payload.formData;
-  var ocrItems = Array.isArray(payload.ocrItems) ? payload.ocrItems : [];
+  var ocrItems = payload.ocrItems || [];
 
-  console.log('[processIntake] Payload keys:', Object.keys(payload).join(', '));
-  console.log('[processIntake] fileId extraído:', fileId, '| type:', typeof fileId);
+  console.log('[processIntake] fileId extraído:', fileId);
+  console.log('[processIntake] formData keys:', Object.keys(formData || {}));
+  console.log('[processIntake] ocrItems count:', ocrItems.length);
 
   // 2. Validar fileId directamente
   if (!fileId || (typeof fileId !== 'string' && typeof fileId !== 'number') || String(fileId).trim() === '') {
-    console.error('[processIntake] FILEID INVÁLIDO O AUSENTE. Payload keys:', Object.keys(payload));
+    console.error('[processIntake] FILEID FALTANTE:', fileId);
     return {
       success: false,
-      error: 'Falta el identificador del archivo PDF. (Recibido: ' + (typeof fileId) + ')'
+      error: 'Falta el identificador del archivo PDF.'
     };
   }
 
