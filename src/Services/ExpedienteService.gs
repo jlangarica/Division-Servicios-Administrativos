@@ -3,86 +3,70 @@
  */
 
 /**
- * @typedef {Object} FormData
- * @property {string} tipo_tramite
- * @property {string} fecha_recepcion
- * @property {string} servicio_solicitante
- * @property {string} oficio_solicitud
- * @property {string} atiende
- * @property {boolean} tiene_negativa
- * @property {string} [fecha_negativa]
- *
- * @typedef {Object} IntakeDTO
- * @property {string} fileId - ID del archivo en Drive (subido via Picker)
- * @property {FormData} formData
- * @property {Array} [ocrItems] - Items extraídos por Gemini AI
- */
-
-/**
  * Registra el ingreso de un oficio, creando una entidad digital centralizada.
  * Utiliza LockService para garantizar la atomicidad del folio.
  *
- * IMPORTANTE: Se reciben parámetros individuales (no un solo objeto) para evitar
- * problemas de serialización con google.script.run cuando el payload contiene
- * arrays anidados con valores null (ej. ocrItems desde Gemini AI).
+ * NOTA: La firma fue cambiada de processIntake(payload) a
+ * processIntake(fileId, formDataJson, ocrItemsJson) para evitar
+ * el bug de google.script.run que pierde propiedades de objetos
+ * anidados complejos. Los argumentos simples (strings) se transmiten
+ * sin pérdida, como lo demuestra processOcrEndpoint(fileId).
  *
- * @param {string} fileId ID del archivo en Drive (subido via Picker).
- * @param {Object} formData Datos del formulario de ingreso.
- * @param {Array} [ocrItems] Items extraídos por Gemini AI (opcional).
+ * @param {string} fileId - ID del archivo en Drive (string simple, nunca se pierde).
+ * @param {string} formDataJson - FormData serializado como JSON string.
+ * @param {string} ocrItemsJson - Items OCR serializados como JSON string (puede ser vacío).
  * @returns {Object} Respuesta {success, folio, viewUrl, fileId, error}
  */
 function processIntake(fileId, formDataJson, ocrItemsJson) {
-  // 0. Debug Log
-  console.log('[processIntake] INICIO');
-  console.log('[processIntake] fileId:', typeof fileId, fileId);
+  // 0. Debug Log — Ver exactamente qué llega desde el navegador
+  console.log('[processIntake] INICIO — Firma nueva (3 argumentos separados)');
+  console.log('[processIntake] fileId type:', typeof fileId, 'value:', fileId);
+  console.log('[processIntake] formDataJson type:', typeof formDataJson, 'length:', formDataJson ? formDataJson.length : 'null');
+  console.log('[processIntake] ocrItemsJson type:', typeof ocrItemsJson, 'length:', ocrItemsJson ? ocrItemsJson.length : 'null');
 
-  // 1. Validación de parámetros individuales
+  // 1. Validar fileId directamente (es un string simple, imposible de perder)
   if (!fileId || typeof fileId !== 'string' || fileId.trim() === '') {
+    console.error('[processIntake] FILEID INVALIDO:', fileId);
     return { success: false, error: 'Falta el identificador del archivo PDF.' };
   }
 
-  // Parsear formData desde JSON string
+  // 2. Parsear formData desde JSON string
   let formData;
   try {
-    formData = typeof formDataJson === 'string' ? JSON.parse(formDataJson) : formDataJson;
-  } catch(e) {
-    console.error('[processIntake] Error al parsear formDataJson:', e.message);
-    return { success: false, error: 'Datos del formulario inválidos (JSON parse error).' };
+    formData = JSON.parse(formDataJson);
+  } catch (e) {
+    console.error('[processIntake] Error parseando formDataJson:', e.message);
+    return { success: false, error: 'Datos del formulario inválidos (JSON corrupto).' };
   }
 
-  if (!formData || typeof formData !== 'object') {
+  if (!formData) {
     return { success: false, error: 'Faltan los datos del formulario.' };
   }
 
-  // Parsear ocrItems desde JSON string (opcional)
+  // 3. Parsear ocrItems desde JSON string (opcional)
   let ocrItems = [];
-  if (ocrItemsJson) {
+  if (ocrItemsJson && ocrItemsJson.trim() !== '' && ocrItemsJson !== '[]') {
     try {
-      ocrItems = typeof ocrItemsJson === 'string' ? JSON.parse(ocrItemsJson) : ocrItemsJson;
-    } catch(e) {
-      console.warn('[processIntake] ocrItemsJson no parseable, continuando sin ellos:', e.message);
+      ocrItems = JSON.parse(ocrItemsJson);
+      console.log('[processIntake] ocrItems parseados:', ocrItems.length, 'items');
+    } catch (e) {
+      console.warn('[processIntake] ocrItems no parseable, continuando sin ellos:', e.message);
     }
   }
 
-  // Construir payload interno para compatibilidad con código existente
-  const payload = {
-    fileId: fileId,
-    formData: formData,
-    ocrItems: ocrItems || []
-  };
-
+  // 4. Validar campos requeridos del formulario
   const requiredFields = ['tipo_tramite', 'fecha_recepcion', 'servicio_solicitante', 'oficio_solicitud'];
   for (const field of requiredFields) {
-    if (!formData[field]?.trim()) {
-      return { success: false, error: `El campo [${field}] es obligatorio.` };
+    if (!formData[field] || !String(formData[field]).trim()) {
+      return { success: false, error: 'El campo [' + field + '] es obligatorio.' };
     }
   }
 
   const lock = LockService.getScriptLock();
   try {
-    // 2. Adquisición de Lock (Máximo 15s para procesos de Drive)
+    // 5. Adquisición de Lock (Máximo 15s para procesos de Drive)
     lock.waitLock(15000);
-    
+
     const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
     const sheet = ss.getSheetByName(SHEETS.BASE_DATOS) || ss.getSheets()[0];
     const lastRow = sheet.getLastRow();
@@ -93,26 +77,29 @@ function processIntake(fileId, formDataJson, ocrItemsJson) {
       return { success: false, error: 'Este número de oficio ya ha sido registrado previamente.' };
     }
 
-    // 3. Generación de Folio y Metadatos
-    const correlativo = lastRow === 0 ? 1 : lastRow; // 1-based index excluyendo header
+    // 6. Generación de Folio y Metadatos
+    const correlativo = lastRow === 0 ? 1 : lastRow;
     const anio = new Date().getFullYear();
     const idInterno = generateUUID();
-    const idFolio = `${correlativo}/${anio}`;
-    const folioDsa = `DSA-${anio}-${String(correlativo).padStart(3, '0')}`;
+    const idFolio = correlativo + '/' + anio;
+    const folioDsa = 'DSA-' + anio + '-' + String(correlativo).padStart(3, '0');
 
     // Formateo de fecha ISO a Regional
-    const [y, m, d] = formData.fecha_recepcion.split('-');
-    const fechaFormateada = (y && m && d) ? `${d}/${m}/${y}` : formData.fecha_recepcion;
+    var fechaFormateada = formData.fecha_recepcion;
+    var partes = formData.fecha_recepcion.split('-');
+    if (partes.length === 3) {
+      fechaFormateada = partes[2] + '/' + partes[1] + '/' + partes[0];
+    }
 
-    // 4. Operaciones en Google Drive — Mover archivo de buffer a carpeta expediente
-    const rootFolder = DriveApp.getFolderById(DRIVE_CONFIG.EXPEDIENTES_FOLDER_ID);
-    const expedienteFolder = rootFolder.createFolder(`Folio_${folioDsa}_DSA`);
-    
-    const sourceFile = DriveApp.getFileById(fileId);
-    const fileName = sourceFile.getName();
-    const blob = sourceFile.getBlob();
-    blob.setName(`Oficio_${folioDsa}_${fileName}`);
-    const file = expedienteFolder.createFile(blob);
+    // 7. Operaciones en Google Drive — Mover archivo de buffer a carpeta expediente
+    var rootFolder = DriveApp.getFolderById(DRIVE_CONFIG.EXPEDIENTES_FOLDER_ID);
+    var expedienteFolder = rootFolder.createFolder('Folio_' + folioDsa + '_DSA');
+
+    var sourceFile = DriveApp.getFileById(fileId);
+    var fileName = sourceFile.getName();
+    var blob = sourceFile.getBlob();
+    blob.setName('Oficio_' + folioDsa + '_' + fileName);
+    var file = expedienteFolder.createFile(blob);
 
     // Limpiar archivo temporal del buffer (si existe en carpeta buffer)
     try {
@@ -121,16 +108,16 @@ function processIntake(fileId, formDataJson, ocrItemsJson) {
     } catch (trashErr) {
       console.warn('[processIntake] No se pudo eliminar archivo buffer:', trashErr.message);
     }
-    
-    // 5. Persistencia Atómica en Sheet 'Expedientes'
-    const timestamp = new Date();
-    const sheetExp = ss.getSheetByName(SHEETS.EXPEDIENTES) || ss.getSheetByName(SHEETS.BASE_DATOS);
-    
+
+    // 8. Persistencia Atómica en Sheet 'Expedientes'
+    var timestamp = new Date();
+    var sheetExp = ss.getSheetByName(SHEETS.EXPEDIENTES) || ss.getSheetByName(SHEETS.BASE_DATOS);
+
     if (!sheetExp) {
       throw new Error('No se encontró la hoja de destino (Expedientes o Base de Datos).');
     }
 
-    const rowData = [
+    var rowData = [
       idInterno,                            // 1. uuid_folio
       folioDsa,                             // 2. folio_dsa
       formData.tipo_tramite,                // 3. tipo_tramite
@@ -144,13 +131,13 @@ function processIntake(fileId, formDataJson, ocrItemsJson) {
       '',                                   // 11. locked_by
       expedienteFolder.getId()              // 12. drive_carpeta_id
     ];
-    
+
     sheetExp.appendRow(rowData);
 
-    // 6. Registrar Evento Génesis en Flujo
-    const sheetFlujo = ss.getSheetByName(SHEETS.FLUJO);
+    // 9. Registrar Evento Génesis en Flujo
+    var sheetFlujo = ss.getSheetByName(SHEETS.FLUJO);
     if (sheetFlujo) {
-      const auditLog = [
+      var auditLog = [
         idInterno,               // uuid_folio
         timestamp,               // timestamp
         'INIT_PROCESS',          // evento
@@ -162,18 +149,20 @@ function processIntake(fileId, formDataJson, ocrItemsJson) {
       sheetFlujo.appendRow(auditLog);
     }
 
-    SpreadsheetApp.flush(); 
-    
+    SpreadsheetApp.flush();
+
+    console.log('[processIntake] EXITO — Folio:', folioDsa, 'FileId:', file.getId());
+
     return {
       success: true,
       folio: folioDsa,
       viewUrl: file.getUrl(),
       fileId: file.getId()
     };
-    
+
   } catch (error) {
     console.error('[ExpedienteService] processIntake Failure:', error);
-    return { success: false, error: `Error en el servidor: ${error.message}` };
+    return { success: false, error: 'Error en el servidor: ' + error.message };
   } finally {
     lock.releaseLock();
   }
@@ -185,17 +174,17 @@ function processIntake(fileId, formDataJson, ocrItemsJson) {
  */
 function getExpedientesLibrary() {
   try {
-    const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
-    const sheet = ss.getSheetByName(SHEETS.EXPEDIENTES) || ss.getSheetByName(SHEETS.BASE_DATOS);
+    var ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
+    var sheet = ss.getSheetByName(SHEETS.EXPEDIENTES) || ss.getSheetByName(SHEETS.BASE_DATOS);
     if (!sheet) return [];
 
-    const data = sheet.getDataRange().getValues();
+    var data = sheet.getDataRange().getValues();
     if (data.length < 2) return [];
 
-    const headers = data[0].map(h => String(h).toLowerCase());
-    const find = (name) => headers.findIndex(h => h.includes(name));
+    var headers = data[0].map(function(h) { return String(h).toLowerCase(); });
+    var find = function(name) { return headers.findIndex(function(h) { return h.includes(name); }); };
 
-    const idx = {
+    var idx = {
       uuid: find('uuid'),
       folio: find('folio_dsa') !== -1 ? find('folio_dsa') : find('folio'),
       tipo: find('tipo'),
@@ -204,10 +193,10 @@ function getExpedientesLibrary() {
       estado: find('estado') !== -1 ? find('estado') : find('estatus')
     };
 
-    return data.slice(1).map(row => {
-      const folio = idx.folio !== -1 ? String(row[idx.folio]) : 'N/A';
-      const anioMatch = folio.match(/-(\d{4})-/);
-      
+    return data.slice(1).map(function(row) {
+      var folio = idx.folio !== -1 ? String(row[idx.folio]) : 'N/A';
+      var anioMatch = folio.match(/-(\d{4})-/);
+
       return {
         uuid: idx.uuid !== -1 ? row[idx.uuid] : '',
         folio: folio,
@@ -230,20 +219,20 @@ function getExpedientesLibrary() {
  */
 function getSolicitudesPorUsuario() {
   try {
-    const user = getActiveUserSession();
+    var user = getActiveUserSession();
     if (!user) return [];
 
-    const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
-    const sheet = ss.getSheetByName(SHEETS.EXPEDIENTES) || ss.getSheetByName(SHEETS.BASE_DATOS);
+    var ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
+    var sheet = ss.getSheetByName(SHEETS.EXPEDIENTES) || ss.getSheetByName(SHEETS.BASE_DATOS);
     if (!sheet) return [];
 
-    const data = sheet.getDataRange().getValues();
+    var data = sheet.getDataRange().getValues();
     if (data.length < 2) return [];
 
-    const headers = data[0].map(h => String(h).toLowerCase());
-    const find = (name) => headers.findIndex(h => h.includes(name));
+    var headers = data[0].map(function(h) { return String(h).toLowerCase(); });
+    var find = function(name) { return headers.findIndex(function(h) { return h.includes(name); }); };
 
-    const colIdx = {
+    var colIdx = {
       uuid: find('uuid'),
       folio: find('folio_dsa') !== -1 ? find('folio_dsa') : find('folio'),
       servicio: find('servicio'),
@@ -251,20 +240,21 @@ function getSolicitudesPorUsuario() {
       estado: find('estado') !== -1 ? find('estado') : find('estatus')
     };
 
-    const solicitudes = data.slice(1).map(row => ({
-      uuid: colIdx.uuid !== -1 ? row[colIdx.uuid] : '',
-      folio: colIdx.folio !== -1 ? row[colIdx.folio] : 'N/A',
-      servicio: colIdx.servicio !== -1 ? row[colIdx.servicio] : '',
-      estado: colIdx.estado !== -1 ? row[colIdx.estado] : 'S01_RECEPCION',
-      atiende: colIdx.atiende !== -1 ? row[colIdx.atiende] : ''
-    }));
+    var solicitudes = data.slice(1).map(function(row) {
+      return {
+        uuid: colIdx.uuid !== -1 ? row[colIdx.uuid] : '',
+        folio: colIdx.folio !== -1 ? row[colIdx.folio] : 'N/A',
+        servicio: colIdx.servicio !== -1 ? row[colIdx.servicio] : '',
+        estado: colIdx.estado !== -1 ? row[colIdx.estado] : 'S01_RECEPCION',
+        atiende: colIdx.atiende !== -1 ? row[colIdx.atiende] : ''
+      };
+    });
 
-    // Lógica de visibilidad
     if (user.role === 'DSA') {
-      return solicitudes.filter(s => !['FINALIZADO', 'S99_RECHAZADO'].includes(s.estado));
+      return solicitudes.filter(function(s) { return !['FINALIZADO', 'S99_RECHAZADO'].includes(s.estado); });
     }
-    
-    return solicitudes.filter(s => s.atiende === user.email);
+
+    return solicitudes.filter(function(s) { return s.atiende === user.email; });
 
   } catch (error) {
     console.error('[ExpedienteService] getSolicitudesPorUsuario Error:', error);
@@ -278,32 +268,32 @@ function getSolicitudesPorUsuario() {
  */
 function getFolioDetails(uuid) {
   try {
-    const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
-    const sheet = ss.getSheetByName(SHEETS.BASE_DATOS);
-    const data = sheet.getDataRange().getValues();
-    
-    const headers = data[0].map(h => String(h).toLowerCase());
-    const row = data.find(r => r[0] === uuid);
+    var ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
+    var sheet = ss.getSheetByName(SHEETS.BASE_DATOS);
+    var data = sheet.getDataRange().getValues();
+
+    var headers = data[0].map(function(h) { return String(h).toLowerCase(); });
+    var row = data.find(function(r) { return r[0] === uuid; });
     if (!row) return null;
 
-    const colIdx = {
-      estado: headers.findIndex(h => h.includes('estado') || h.includes('estatus')),
-      url: headers.findIndex(h => h.includes('drive') || h.includes('url'))
+    var colIdx = {
+      estado: headers.findIndex(function(h) { return h.includes('estado') || h.includes('estatus'); }),
+      url: headers.findIndex(function(h) { return h.includes('drive') || h.includes('url'); })
     };
 
-    const driveUrl = colIdx.url !== -1 ? row[colIdx.url] : '';
-    let pdfFileId = '';
-    
+    var driveUrl = colIdx.url !== -1 ? row[colIdx.url] : '';
+    var pdfFileId = '';
+
     if (driveUrl) {
       try {
-        const folderId = driveUrl.match(/[-\w]{25,}/); // Regex robusto para IDs de Drive
+        var folderId = driveUrl.match(/[-\w]{25,}/);
         if (folderId) {
-          const folder = DriveApp.getFolderById(folderId[0]);
-          const files = folder.getFilesByType(MimeType.PDF);
+          var folder = DriveApp.getFolderById(folderId[0]);
+          var files = folder.getFilesByType(MimeType.PDF);
           if (files.hasNext()) pdfFileId = files.next().getId();
         }
       } catch (e) {
-        console.warn(`[GetFolioDetails] I/O Drive Error para ${uuid}:`, e.message);
+        console.warn('[GetFolioDetails] I/O Drive Error para ' + uuid + ':', e.message);
       }
     }
 
@@ -324,6 +314,3 @@ function getFolioDetails(uuid) {
     return null;
   }
 }
-
-
-
