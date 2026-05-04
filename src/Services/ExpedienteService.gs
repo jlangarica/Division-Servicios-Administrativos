@@ -280,11 +280,9 @@ function getSolicitudesPorUsuario() {
       };
     });
 
-    if (user.role === 'DSA') {
-      return solicitudes.filter(s => !['FINALIZADO', 'S99_RECHAZADO'].includes(s.estado));
-    }
-
-    return solicitudes.filter(s => s.atiende === user.email);
+    // ELIMINADO: Restricción por rol o asignación (atiende == user.email)
+    // Ahora cualquier usuario autenticado puede ver y gestionar cualquier folio activo.
+    return solicitudes.filter(s => !['FINALIZADO', 'S99_RECHAZADO'].includes(s.estado));
 
   } catch (error) {
     console.error('[ExpedienteService] getSolicitudesPorUsuario Error:', error);

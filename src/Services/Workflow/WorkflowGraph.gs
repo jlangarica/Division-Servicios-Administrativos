@@ -14,8 +14,8 @@ const WORKFLOW_GRAPH = [
     to: 'S02_VERIF_CATALOGO',
     event: 'ADVANCE',
     guard: function(ctx) {
-      // Requiere que el usuario sea DSA y que el oficio exista (se asume en ctx.documents o similar)
-      return ctx.userRole === 'DSA' && ctx.documents && ctx.documents.includes('OFICIO_ESCANEADO');
+      // ELIMINADO: Validación de rol y documentos
+      return true;
     },
     requiresReason: false
   },
@@ -26,7 +26,7 @@ const WORKFLOW_GRAPH = [
     to: 'S03_SOLICITUD_COTIZACION',
     event: 'ADVANCE',
     guard: function(ctx) {
-      return ctx.userRole === 'DSA';
+      return true;
     },
     requiresReason: false
   },
@@ -37,8 +37,8 @@ const WORKFLOW_GRAPH = [
     to: 'S09_CUADRO_COMPARATIVO',
     event: 'ADVANCE',
     guard: function(ctx) {
-      // Avanza a cuadro comparativo cuando hay al menos 3 cotizaciones
-      return ctx.userRole === 'DSA' && (ctx.cotizacionesRecibidas || 0) >= 3;
+      // ELIMINADO: Validación de cuórum de cotizaciones
+      return true;
     },
     requiresReason: false
   },
@@ -49,10 +49,8 @@ const WORKFLOW_GRAPH = [
     to: 'S99_RECHAZADO',
     event: 'REJECT',
     guard: function(ctx) {
-      return ctx.userRole === 'DSA';
+      return true;
     },
     requiresReason: true
   }
-  
-  // Nota: Añadir más transiciones según las necesidades específicas del dominio.
 ];
