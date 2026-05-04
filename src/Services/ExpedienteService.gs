@@ -366,22 +366,31 @@ function processOcrItemsBatch(payloadData) {
       
       // Asegurar cabeceras si la hoja es nueva
       if (sheetBienes.getLastRow() === 0) {
-        sheetBienes.appendRow(['UUID_Folio', 'CodigoInsumo', 'Descripcion', 'CantidadSolicitada', 'UnidadMedida', 'ClaveCatalogo']);
+        sheetBienes.appendRow([
+          'uuid_detalle', 'uuid_folio_fk', 'codigo', 'descripcion', 
+          'unidad_medida', 'cantidad_solicitada', 'partida_presupuestal', 
+          'precio_unitario_sin_iva', 'subtotal', 'iva', 'precio_unitario_con_iva'
+        ]);
       }
 
-      // 3. Mapear items a matriz 2D: [[UUID_Folio, CodigoInsumo, Descripcion, CantidadSolicitada, UnidadMedida, ClaveCatalogo]]
+      // 3. Mapear items a matriz 2D (11 columnas según esquema del usuario)
       const matrix = items.map(item => [
-        uuid,
-        String(item.codigo_insumo || ''),
-        String(item.descripcion || ''),
-        String(item.cantidad_solicitada || ''),
-        String(item.unidad_medida || ''),
-        String(item.clave_catalogo || '')
+        generateUUID(),                       // 1. uuid_detalle
+        uuid,                                 // 2. uuid_folio_fk
+        String(item.codigo_insumo || ''),     // 3. codigo
+        String(item.descripcion || ''),       // 4. descripcion
+        String(item.unidad_medida || ''),     // 5. unidad_medida
+        String(item.cantidad_solicitada || ''), // 6. cantidad_solicitada
+        String(item.partida || ''),           // 7. partida_presupuestal
+        '',                                   // 8. precio_unitario_sin_iva
+        '',                                   // 9. subtotal
+        '',                                   // 10. iva
+        ''                                    // 11. precio_unitario_con_iva
       ]);
 
       // 4. Escritura en Batch (getLastRow + 1)
       const lastRow = sheetBienes.getLastRow();
-      sheetBienes.getRange(lastRow + 1, 1, matrix.length, 6).setValues(matrix);
+      sheetBienes.getRange(lastRow + 1, 1, matrix.length, 11).setValues(matrix);
 
       // 5. Auditoría en Hoja 'Flujo' (Objeto de Auditoría punto [3])
       const sheetFlujo = ss.getSheetByName(SHEETS.FLUJO);
