@@ -222,40 +222,36 @@ function cacheView(path, html) {
 }
 
 const AsyncRunner = (() => {
-  return {
-    /**
-     * Ejecuta una función del servidor de forma asíncrona.
-     * 
-     * @param {string} methodName Nombre de la función en el servidor.
-     * @param {...any} args Argumentos para la función.
-     * @returns {Promise<any>} Promesa con el resultado del servidor.
-     */
-    run(methodName, ...args) {
-      return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => {
-          console.warn(`[AsyncRunner] La llamada a ${methodName} está tardando más de lo esperado...`);
-        }, 15000);
+  const DEFAULT_TIMEOUT_MS = 120000;
 
-        const serverCall = google.script.run
-          .withSuccessHandler((res) => {
-            clearTimeout(timer);
-            resolve(res);
-          })
-          .withFailureHandler((err) => {
-            clearTimeout(timer);
-            console.error(`[AsyncRunner] Error en ${methodName}:`, err);
-            reject({
-              message: err.message || 'Error desconocido en el servidor',
-              name: err.name || 'ServerError',
-              method: methodName
-            });
-          });
-        
-        // Ejecución de la llamada al servidor
-        serverCall[methodName](...args);
-      });
-    }
-  };
+  /**
+   * Ejecuta una función del servidor de forma asíncrona.
+   * Los argumentos se pasan DIRECTAMENTE como parámetros de google.script.run.
+   * NO usar withUserObject() para datos críticos - esos no llegan como argumentos.
+   * 
+   * @param {string} methodName Nombre de la función en el servidor.
+   * @param {...any} args Argumentos para la función (se envían por valor).
+   * @returns {Promise<any>} Promesa con el resultado del servidor.
+   */
+  function run(methodName, ...args) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error(`Timeout al ejecutar ${methodName}`));
+      }, DEFAULT_TIMEOUT_MS);
+
+      google.script.run
+        .withSuccessHandler((result) => {
+          clearTimeout(timer);
+          resolve(result);
+        })
+        .withFailureHandler((err) => {
+          clearTimeout(timer);
+          reject(err instanceof Error ? err : new Error(err?.message || String(err)));
+        })[methodName](...args);
+    });
+  }
+
+  return { run };
 })();
 
 function loadViewContent(viewPath, root) {

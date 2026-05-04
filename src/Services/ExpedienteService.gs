@@ -6,43 +6,26 @@
  * Registra el ingreso de un oficio, creando una entidad digital centralizada.
  * Utiliza LockService para garantizar la atomicidad del folio.
  *
- * @param {string|Object} payloadData - JSON string u objeto con estructura: {"fileId":"...","formData":{...},"ocrItems":[...]}
+ * @param {Object} payload - Objeto con estructura: {fileId:"...", formData:{...}, ocrItems:[...]}
  * @returns {Object} Respuesta {success, folio, viewUrl, fileId, error}
  */
-function processIntake(payloadData) {
-  // 0. Debug Log — Ver exactamente que llega desde el navegador
+function processIntake(payload) {
+  // 0. Debug Log — Ver exactamente qué llega desde el navegador
   console.log('[processIntake] INICIO — Procesando payload');
-  console.log('[processIntake] Tipo de dato recibido:', typeof payloadData);
+  console.log('[processIntake] Tipo de dato recibido:', typeof payload);
   
-  let payload;
-
-  // 1. Manejo resiliente del payload (google.script.run puede auto-parsear JSON)
-  if (typeof payloadData === 'object' && payloadData !== null) {
-    // Caso A: Google Apps Script ya deserializó el JSON automáticamente
-    console.log('[processIntake] Payload llegó como OBJETO (auto-deserializado por GAS)');
-    payload = payloadData;
-  } else if (typeof payloadData === 'string') {
-    // Caso B: Llegó como string JSON crudo
-    console.log('[processIntake] Payload llegó como STRING JSON (length: %s)', payloadData.length);
-    
-    if (!payloadData || payloadData.trim() === '') {
-      console.error('[processIntake] ERROR: String JSON VACÍO');
-      return { success: false, error: 'Payload vacío o inválido.' };
-    }
-    try {
-      payload = JSON.parse(payloadData);
-      console.log('[processIntake] JSON parseado exitosamente.');
-    } catch (e) {
-      return { success: false, error: 'Payload inválido (JSON corrupto): ' + e.message };
-    }
-  } else {
-    // Caso C: Tipo inesperado
-    console.error('[processIntake] ERROR: Tipo de dato inesperado:', typeof payloadData);
-    return { success: false, error: 'Payload vacío o inválido (tipo: ' + typeof payloadData + ').' };
+  // 1. Validación inicial del payload
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    console.error('[processIntake] ERROR: Payload no es un objeto válido');
+    return { success: false, error: 'Payload vacío o inválido.' };
   }
 
+  console.log('[processIntake] Payload llegó como OBJETO (google.script.run auto-deserializó)');
+
   // 2. Extraer y validar datos
-  const { fileId, formData, ocrItems = [] } = payload;
+  const fileId = payload.fileId;
+  const formData = payload.formData;
+  const ocrItems = Array.isArray(payload.ocrItems) ? payload.ocrItems : [];
 
   console.log('[processIntake] fileId extraído:', fileId);
   console.log('[processIntake] ocrItems count:', ocrItems.length);
@@ -151,7 +134,7 @@ function processIntake(payloadData) {
         'NONE',
         'S01_RECEPCION',
         formData.atiende,
-        'Recepción de documento físico'
+        `Recepción de documento físico. OCR items: ${ocrItems.length}`
       ];
       sheetFlujo.appendRow(auditLog);
     }
