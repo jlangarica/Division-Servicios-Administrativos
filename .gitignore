@@ -1,16 +1,1 @@
-# Clasp
-.clasp.json
-build/
-
-# Node
-node_modules/
-npm-debug.log
-yarn-error.log
-
-# IDE
-.vscode/
-.idea/
-
-# OS
-.DS_Store
-Thumbs.db
+Nothing should be ignored based on the provided file changes. The modified file 'src/Services/Workflow/WorkflowEndpoints.gs' is a source code file that should be tracked in version control. No build artifacts, dependency directories, or temporary files are present in the changes.

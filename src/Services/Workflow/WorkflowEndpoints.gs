@@ -90,10 +90,10 @@ function getPickerConfig() {
 /**
  * Endpoint RPC para extracción OCR con Gemini AI.
  * Recibe un fileId de Drive (subido por Picker), extrae el blob,
- * lo envía a Gemini y elimina atómicamente el archivo temporal.
+ * lo envía a Gemini y mantiene el archivo temporal para su uso posterior en processIntake.
  *
  * REGLA DE ORO: "No Base64 in RPC" — el binario viaja por Drive, no por parámetros.
- * REGLA DE ORO: "Atomic Trash" — el archivo se elimina en la misma ejecución, sin excepciones.
+ * REGLA DE ORO: "Atomic Trash" — el archivo se elimina en processIntake, NO aquí.
  *
  * @param {string} fileId ID del archivo en Google Drive (subido por Picker).
  * @returns {Object} Datos estructurados extraídos, o { success: false, error }.
@@ -111,6 +111,11 @@ function processOcrEndpoint(fileId) {
     // 1. Ingesta — Obtener el blob del archivo desde Drive
     console.log('--- Iniciando OCR para archivo: %s ---', fileId);
     driveFile = DriveApp.getFileById(fileId);
+
+    // Verificar que el archivo aún existe y es accesible
+    if (!driveFile) {
+      throw new Error('El archivo PDF no existe o fue eliminado.');
+    }
 
     const blob = driveFile.getBlob();
     const bytes = blob.getBytes();
@@ -131,6 +136,9 @@ function processOcrEndpoint(fileId) {
     // 3. Análisis — Ejecutar extracción AI
     const base64Data = Utilities.base64Encode(bytes);
     const result = OcrService.analyzeDocumentWithGemini(base64Data, mimeType);
+
+    // IMPORTANTE: NO eliminar el archivo aquí - se necesita para processIntake
+    // El archivo será eliminado en processIntake después de crear la copia en la carpeta de expedientes
 
     return result;
 
