@@ -430,25 +430,23 @@
         });
       }
 
-      // 4. Construir Payload Único
+      // 4. Construir Payload Único - OBJETO DIRECTO (NO string JSON)
       var payload = {
         fileId: currentFileId,
         formData: formData,
         ocrItems: ocrItems
       };
-      
-      var payloadJson = JSON.stringify(payload);
-      
-      // VALIDAR payload ANTES de enviar
-      if (!payloadJson || payloadJson.length < 50) {
-        throw new Error('Payload JSON inválido (muy pequeño): ' + payloadJson);
-      }
-      
-      console.log('[handleProcessIntake] 🚀 ENVIANDO payload (length: %s)', payloadJson.length);
 
-      // 5. LLAMADA ESTANDARIZADA con AsyncRunner (consistente con la SPA)
-      // AsyncRunner detecta automáticamente payloads grandes y usa withUserObject
-      var res = await AsyncRunner.run('processIntake', payloadJson);
+      // VALIDAR payload ANTES de enviar
+      if (!payload.fileId || !payload.formData.oficio_solicitud || !payload.formData.fecha_recepcion) {
+        throw new Error('Payload incompleto: faltan campos requeridos (fileId, oficio_solicitud, fecha_recepcion).');
+      }
+
+      console.log('[handleProcessIntake] 🚀 ENVIANDO payload:', JSON.stringify({ fileId: payload.fileId, formDataKeys: Object.keys(payload.formData), ocrItemsCount: payload.ocrItems.length }));
+
+      // 5. LLAMADA ESTANDARIZADA con AsyncRunner
+      // El payload se envía COMO OBJETO directamente como argumento de google.script.run
+      var res = await AsyncRunner.run('processIntake', payload);
 
       console.log('[handleProcessIntake] ✅ Respuesta:', res);
 
