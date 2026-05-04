@@ -394,15 +394,19 @@
       var fechaNegativa = tieneNegativa ? (document.getElementById('intake-fecha-negativa').value || '') : '';
       
       // ── Construir ocrItems como array SIMPLE de objetos literales ──
+      // Se mapea según el esquema de OcrService.gs (Gemini response)
       var ocrItemsSimple = [];
       if (window._ocrExtractedItems && Array.isArray(window._ocrExtractedItems)) {
-        for (var i = 0; i < window._ocrExtractedItems.length; i++) {
-          var item = window._ocrExtractedItems[i];
-          ocrItemsSimple.push({
-            key: String(item.key || ''),
-            value: String(item.value || '')
-          });
-        }
+        ocrItemsSimple = window._ocrExtractedItems.map(function(item) {
+          return {
+            codigo_insumo: String(item.codigo_insumo || ''),
+            descripcion: String(item.descripcion || ''),
+            cantidad_solicitada: String(item.cantidad_solicitada || ''),
+            unidad_medida: String(item.unidad_medida || ''),
+            partida: String(item.partida || ''),
+            clave_catalogo: String(item.clave_catalogo || '')
+          };
+        });
       }
 
       // ── Construir payload object y usar JSON.stringify ──
@@ -434,21 +438,9 @@
       }
       
       console.log('[handleProcessIntake] 🚀 ENVIANDO → fileId:', currentFileId, '| payload length:', payloadJson.length);
-      console.log('[handleProcessIntake] 📦 payloadJson preview:', payloadJson.substring(0, 300) + '...');
 
-      // ── LLAMADA DIRECTA con google.script.run (1 solo argumento JSON) ──
-      var res = await new Promise(function(resolve, reject) {
-        google.script.run
-          .withSuccessHandler(function(result) { 
-            console.log('[handleProcessIntake] ✅ SuccessHandler:', result);
-            resolve(result); 
-          })
-          .withFailureHandler(function(error) { 
-            console.error('[handleProcessIntake] 💥 FailureHandler:', error);
-            reject(error); 
-          })
-          .processIntake(payloadJson);
-      });
+      // ── LLAMADA ESTANDARIZADA con AsyncRunner (consistente con la SPA) ──
+      var res = await AsyncRunner.run('processIntake', payloadJson);
 
       console.log('[handleProcessIntake] ✅ Respuesta servidor:', res);
 
@@ -552,12 +544,10 @@
     const container = document.getElementById('negativa-date-container');
     if (container) {
       container.style.display = show ? 'block' : 'none';
+      const dateInput = document.getElementById('intake-fecha-negativa');
+      if (dateInput) {
+        dateInput.required = show;
+      }
     }
   };
-
-  function toggleNegativaDate(show) {
-    const container = document.getElementById('negativa-date-container');
-    container.style.display = show ? 'block' : 'none';
-    document.getElementById('intake-fecha-negativa').required = show;
-  }
 </script>
