@@ -7,8 +7,8 @@
  * y normalización de tablas basada en auditoría documental.
  */
 const OcrService = (() => {
-  /** @const {string} Modelo: Gemini 1.5 Flash (producción, multimodal, rápido) */
-  const MODEL_ID = "gemini-1.5-flash";
+  /** @const {string} Modelo: Gemini 2.5 Flash (producción, multimodal, rápido) */
+  const MODEL_ID = "gemini-2.5-flash";
 
   /** @const {string} Base URL del endpoint REST de Gemini */
   const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -233,7 +233,10 @@ toda la información aplicando las siguientes REGLAS DE ORO con precisión quir�
     try {
       response = UrlFetchApp.fetch(apiUrl, options);
     } catch (fetchErr) {
-      console.error("[OcrService] Error crítico de red en UrlFetchApp:", fetchErr.message);
+      console.error(
+        "[OcrService] Error crítico de red en UrlFetchApp:",
+        fetchErr.message,
+      );
       throw new Error(`Error de conexión con Gemini AI: ${fetchErr.message}`);
     }
 
@@ -251,7 +254,11 @@ toda la información aplicando las siguientes REGLAS DE ORO con precisión quir�
 
         // Log detallado para diagnóstico de cuotas o seguridad
         if (errorObj.error?.status) {
-          console.error("[OcrService] Status: %s, Details: %j", errorObj.error.status, errorObj.error.details || []);
+          console.error(
+            "[OcrService] Status: %s, Details: %j",
+            errorObj.error.status,
+            errorObj.error.details || [],
+          );
         }
       } catch (_) {
         errorDetail = responseBody.substring(0, 200);
