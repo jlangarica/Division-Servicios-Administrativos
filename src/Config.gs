@@ -54,6 +54,7 @@ const SHEETS = Object.freeze({
   USUARIOS: 'Usuarios',
   BASE_DATOS: 'Base de Datos',
   EXPEDIENTES: 'Expedientes',
+  BIENES: 'Bienes',
   FLUJO: 'Flujo',
 });
 

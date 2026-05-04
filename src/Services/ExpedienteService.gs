@@ -145,6 +145,7 @@ function processIntake(payload) {
 
     return {
       success: true,
+      uuid: idInterno,
       folio: folioDsa,
       viewUrl: file.getUrl(),
       fileId: file.getId()
