@@ -1,0 +1,89 @@
+/**
+ * Motor de Workflow Estático (FSM)
+ * 
+ * Implementación funcional (Stateless) de la máquina de estados.
+ * Las reglas están separadas de los efectos secundarios (Side Effects).
+ */
+const WorkflowEngine = {
+
+  /**
+   * Evalúa si una transición es válida dados el estado actual, el evento y el contexto.
+   * Función Pura: No interactúa con Google Sheets ni Google Drive.
+   * 
+   * @param {string} currentState El estado actual del folio (ej. 'S01_RECEPCION').
+   * @param {string} event El evento disparado (ej. 'ADVANCE', 'REJECT').
+   * @param {Object} context El objeto TransitionContext (hidratado por ContextManager).
+   * @param {Object} [payload={}] Datos adicionales enviados por el usuario.
+   * @returns {Object} {ok: boolean, error: string|null, nextState: string|null, requiresReason: boolean}
+   */
+  evaluateTransition: function(currentState, event, context, payload = {}) {
+    // 1. Obtener TODAS las transiciones candidatas para el estado y evento actual
+    const candidates = WORKFLOW_GRAPH.filter(t => 
+      t.from === currentState && t.event === event
+    );
+
+    if (candidates.length === 0) {
+      return { ok: false, error: `Transición no definida desde [${currentState}] con evento [${event}].` };
+    }
+
+    // 2. Evaluar guardas secuencialmente (prioridad por orden de definición en el grafo)
+    for (const transition of candidates) {
+      try {
+        if (transition.guard(context)) {
+          // Si la guarda pasa, validamos si requiere razón
+          if (transition.requiresReason && (!payload.reason || payload.reason.trim() === '')) {
+            return { ok: false, error: "Esta acción requiere un motivo o justificación (reason)." };
+          }
+          
+          return { 
+            ok: true, 
+            error: null, 
+            nextState: transition.to, 
+            requiresReason: transition.requiresReason 
+          };
+        }
+      } catch (e) {
+        console.error('[WorkflowEngine] Error evaluando guarda:', e);
+        return { ok: false, error: "Error interno al evaluar las reglas de negocio." };
+      }
+    }
+
+    // Si ninguna guarda de los candidatos pasó
+    return { ok: false, error: "No se cumplen las condiciones o privilegios para realizar esta transición." };
+  }
+,
+
+  /**
+   * Obtiene los eventos válidos (botones a mostrar en la UI) 
+   * según el estado actual y el contexto.
+   * 
+   * @param {string} uuid_folio El ID del expediente.
+   * @param {Object} [sessionContext={}] Contexto adicional de la sesión del usuario.
+   * @returns {Array<string>} Lista de eventos válidos.
+   */
+  getAvailableActions: function(uuid_folio, sessionContext = {}) {
+    // 1. Hidratar el contexto (puede usar caché internamente)
+    // Se invoca dinámicamente a ContextManager
+    const context = ContextManager.buildContext(uuid_folio);
+    
+    // Unir contexto de dominio con contexto de sesión (ej. userRole inyectado desde la sesión)
+    const evalContext = { ...context, ...sessionContext };
+
+    // 2. Filtrar transiciones posibles desde el estado actual
+    const possibleTransitions = WORKFLOW_GRAPH.filter(t => t.from === evalContext.estado_actual);
+
+    // 3. Ejecutar guardas
+    const validEvents = [];
+    for (const transition of possibleTransitions) {
+      try {
+        if (transition.guard(evalContext)) {
+          validEvents.push(transition.event);
+        }
+      } catch (e) {
+        // Ignorar transiciones donde la guarda falle lanzando excepción
+      }
+    }
+
+    return validEvents;
+  }
+};
