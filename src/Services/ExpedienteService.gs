@@ -259,28 +259,55 @@ function getSolicitudesPorUsuario() {
 
 /**
  * Obtiene detalle de un folio buscando eficientemente el archivo en Drive.
+ * Utiliza mapeo dinámico de columnas para garantizar compatibilidad entre versiones de la base de datos.
+ * 
+ * @param {string} uuid - Identificador único del folio.
+ * @returns {Object|null} Objeto con detalles del folio o null si no se encuentra.
  */
 function getFolioDetails(uuid) {
   try {
     const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
-    const sheet = ss.getSheetByName(SHEETS.BASE_DATOS);
+    const sheet = ss.getSheetByName(SHEETS.EXPEDIENTES) || ss.getSheetByName(SHEETS.BASE_DATOS);
+    
+    if (!sheet) {
+      console.error('[GetFolioDetails] No se encontró la hoja de expedientes ni la base de datos.');
+      return null;
+    }
+
     const data = sheet.getDataRange().getValues();
+    if (data.length < 2) return null;
 
     const headers = data[0].map(h => String(h).toLowerCase());
-    const row = data.find(r => r[0] === uuid);
-    if (!row) return null;
+    const findIdx = (name) => headers.findIndex(h => h.includes(name));
 
     const colIdx = {
-      estado: headers.findIndex(h => h.includes('estado') || h.includes('estatus')),
-      url: headers.findIndex(h => h.includes('drive') || h.includes('url'))
+      uuid: findIdx('uuid'),
+      folio: findIdx('folio_dsa') !== -1 ? findIdx('folio_dsa') : findIdx('folio'),
+      servicio: findIdx('servicio'),
+      estado: findIdx('estado') !== -1 ? findIdx('estado') : findIdx('estatus'),
+      url: findIdx('drive') !== -1 ? findIdx('drive') : findIdx('url'),
+      oficio: findIdx('oficio'),
+      tipo: findIdx('tipo')
     };
 
-    const driveUrl = colIdx.url !== -1 ? row[colIdx.url] : '';
+    // Validar que al menos el UUID sea localizable
+    if (colIdx.uuid === -1) {
+      console.error('[GetFolioDetails] No se pudo localizar la columna UUID en la cabecera.');
+      return null;
+    }
+
+    const row = data.find(r => r[colIdx.uuid] === uuid);
+    if (!row) {
+      console.warn(`[GetFolioDetails] No se encontró el UUID ${uuid} en la hoja.`);
+      return null;
+    }
+
+    const driveRef = colIdx.url !== -1 ? String(row[colIdx.url]) : '';
     let pdfFileId = '';
 
-    if (driveUrl) {
+    if (driveRef) {
       try {
-        const folderIdMatch = driveUrl.match(/[-\w]{25,}/);
+        const folderIdMatch = driveRef.match(/[-\w]{25,}/);
         if (folderIdMatch) {
           const folder = DriveApp.getFolderById(folderIdMatch[0]);
           const files = folder.getFilesByType(MimeType.PDF);
@@ -292,14 +319,14 @@ function getFolioDetails(uuid) {
     }
 
     return {
-      uuid: row[0],
-      folio: row[2],
-      servicio: row[5],
+      uuid: row[colIdx.uuid],
+      folio: colIdx.folio !== -1 ? row[colIdx.folio] : 'N/A',
+      servicio: colIdx.servicio !== -1 ? row[colIdx.servicio] : 'N/A',
       estado: colIdx.estado !== -1 ? row[colIdx.estado] : 'S01_RECEPCION',
       pdfFileId: pdfFileId,
       data: {
-        oficio_solicitud: row[6],
-        tipo_tramite: row[3]
+        oficio_solicitud: colIdx.oficio !== -1 ? row[colIdx.oficio] : '',
+        tipo_tramite: colIdx.tipo !== -1 ? row[colIdx.tipo] : ''
       }
     };
 
