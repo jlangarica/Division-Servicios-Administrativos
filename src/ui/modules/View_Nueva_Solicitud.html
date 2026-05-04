@@ -248,7 +248,12 @@
       window._selectedFileId = fileId;
       var hiddenInput = document.getElementById('hidden-file-id');
       if (hiddenInput) hiddenInput.value = fileId;
-      console.log("✅ ID de Archivo persistido:", window._selectedFileId, "| hidden:", fileId);
+      
+      // Tercera capa de persistencia: form dataset (defensa contra re-renderizados)
+      var form = document.getElementById('form-nueva-solicitud');
+      if (form) form.dataset.fileId = fileId;
+      
+      console.log("✅ ID de Archivo persistido:", window._selectedFileId, "| hidden:", fileId, "| form.dataset:", fileId);
 
       // Inicia el stepper visual (UNA sola vez)
       startProcessStepper();

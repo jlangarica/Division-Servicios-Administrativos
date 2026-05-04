@@ -623,13 +623,29 @@ async function handleProcessIntake(event) {
   event.preventDefault();
 
   // ── LEER fileId de MÚLTIPLES fuentes (defensa en profundidad) ──
-  const hiddenFileId = document.getElementById('hidden-file-id') ? document.getElementById('hidden-file-id').value : '';
+  // PRIORIDAD: window._selectedFileId PRIMERO (más persistente), luego hidden input, luego form dataset
   const windowFileId = window._selectedFileId ? String(window._selectedFileId) : '';
-  const currentFileId = hiddenFileId || windowFileId;
-
-  console.log('[handleProcessIntake] hiddenFileId:', hiddenFileId);
+  const hiddenFileId = document.getElementById('hidden-file-id') ? document.getElementById('hidden-file-id').value : '';
+  const formFileId = document.getElementById('form-nueva-solicitud')?.dataset?.fileId || '';
+  const currentFileId = windowFileId || hiddenFileId || formFileId;
+  
   console.log('[handleProcessIntake] windowFileId:', windowFileId);
+  console.log('[handleProcessIntake] hiddenFileId:', hiddenFileId);
+  console.log('[handleProcessIntake] formFileId:', formFileId);
   console.log('[handleProcessIntake] currentFileId (final):', currentFileId);
+  
+  // Re-sincronizar el hidden input y form dataset (por si el DOM se re-renderizó)
+  if (currentFileId) {
+    const hiddenInput = document.getElementById('hidden-file-id');
+    if (hiddenInput && hiddenInput.value !== currentFileId) {
+      hiddenInput.value = currentFileId;
+    }
+    const form = document.getElementById('form-nueva-solicitud');
+    if (form && form.dataset.fileId !== currentFileId) {
+      form.dataset.fileId = currentFileId;
+    }
+  }
+
 
   if (!currentFileId) {
     Toast.show('⚠️ Primero selecciona el oficio PDF usando el botón de carga.');
