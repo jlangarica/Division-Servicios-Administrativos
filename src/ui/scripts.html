@@ -43,26 +43,44 @@ const AppState = (() => {
 /* --- TOAST SYSTEM --- */
 const Toast = (() => {
   const container = () => document.getElementById('toast-container');
+  
+  const ICONS = {
+    success: '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>',
+    error: '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>',
+    warning: '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
+    info: '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>'
+  };
 
-  function show(message, duration = 3500) {
+  function show(message, type = 'info', duration = 3500) {
     const el = document.createElement('div');
-    el.className = 'toast';
-    el.textContent = message;
+    el.className = `toast toast--${type}`;
+    el.innerHTML = `${ICONS[type]} <span>${message}</span>`;
     container().appendChild(el);
+
+    // Los errores persisten más tiempo o requieren acción si se desea, por ahora solo más tiempo
+    const finalDuration = type === 'error' ? 6000 : duration;
 
     setTimeout(() => {
       el.classList.add('toast--exit');
       el.addEventListener('animationend', () => el.remove());
-    }, duration);
+    }, finalDuration);
   }
 
-  return { show };
+  return {
+    show,
+    success: (msg) => show(msg, 'success'),
+    error: (msg) => show(msg, 'error'),
+    warning: (msg) => show(msg, 'warning'),
+    info: (msg) => show(msg, 'info')
+  };
 })();
 
 
 /* --- RIPPLE EFFECT --- */
 function createRipple(event) {
   const btn = event.currentTarget;
+  if (!btn.classList.contains('btn') && !btn.hasAttribute('data-ripple')) return;
+
   const rect = btn.getBoundingClientRect();
   const size = Math.max(rect.width, rect.height);
   const x = event.clientX - rect.left - size / 2;
@@ -77,6 +95,20 @@ function createRipple(event) {
   btn.appendChild(ripple);
   ripple.addEventListener('animationend', () => ripple.remove());
 }
+
+// Global ripple listener
+document.addEventListener('mousedown', (e) => {
+  const target = e.target.closest('.btn, [data-ripple]');
+  if (target) {
+    // Simulamos currentTarget para reusar la lógica
+    const mockEvent = {
+      currentTarget: target,
+      clientX: e.clientX,
+      clientY: e.clientY
+    };
+    createRipple(mockEvent);
+  }
+});
 
 
 /* --- AUTH --- */
@@ -193,26 +225,32 @@ let _viewTransitionLock = false;
 function renderView(viewPath) {
   if (_viewTransitionLock) return;
 
-  // Cleanup de estados globales al navegar fuera de módulos específicos
+  // Cleanup de estados globales
   if (AppState.currentView === 'ui/modules/View_Nueva_Solicitud' && viewPath !== 'ui/modules/View_Nueva_Solicitud') {
     window._selectedFileId = null;
     window._ocrExtractedItems = null;
-    console.log('[Router] Estado de OCR limpiado al navegar fuera de Nueva Solicitud');
   }
-
-  _viewTransitionLock = true;
 
   const root = document.getElementById('app-content') || document.getElementById('app-root');
 
-  // Exit animation
-  const currentContent = root.querySelector('.view-transition');
-  if (currentContent) {
-    currentContent.classList.add('view-transition-exit');
-    currentContent.addEventListener('animationend', function() {
+  const performTransition = () => {
+    _viewTransitionLock = true;
+    const currentContent = root.querySelector('.view-transition');
+    if (currentContent) {
+      currentContent.classList.add('view-transition-exit');
+      currentContent.addEventListener('animationend', function() {
+        loadViewContent(viewPath, root);
+      }, { once: true });
+    } else {
       loadViewContent(viewPath, root);
-    }, { once: true });
+    }
+  };
+
+  // View Transitions API support (Experimental/Chrome)
+  if (document.startViewTransition) {
+    document.startViewTransition(() => performTransition());
   } else {
-    loadViewContent(viewPath, root);
+    performTransition();
   }
 }
 
@@ -264,8 +302,16 @@ function loadViewContent(viewPath, root) {
     return;
   }
 
-  // 2. Cache MISS -> Pedir al servidor
-  root.innerHTML = `<div class="view-transition"><div class="loader-container" style="min-height:30vh;" role="status" aria-live="polite"><div class="loader-ring" aria-hidden="true"></div><p class="loader-text">Cargando módulo...</p></div></div>`;
+  // 2. Cache MISS -> Pedir al servidor con Skeleton
+  let skeletonHTML = '<div class="view-transition skeleton-table"><div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div></div>';
+  
+  if (viewPath.includes('Dashboard')) {
+    skeletonHTML = '<div class="view-transition skeleton-dashboard"><div class="skeleton-card"></div><div class="skeleton-card"></div><div class="skeleton-card"></div><div class="skeleton-card"></div></div>';
+  } else if (viewPath.includes('Solicitud')) {
+    skeletonHTML = '<div class="view-transition" style="display:flex;gap:24px;"><div class="skeleton-card" style="flex:2;height:400px;"></div><div class="skeleton-card" style="flex:1;height:400px;"></div></div>';
+  }
+
+  root.innerHTML = skeletonHTML;
 
   AsyncRunner.run('include', viewPath)
     .then(html => {

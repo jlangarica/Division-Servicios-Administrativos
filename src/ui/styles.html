@@ -363,13 +363,13 @@ img, svg { display: block; max-width: 100%; }
 }
 
 /* Ripple Effect for Nav Buttons */
-.nav-btn .ripple {
+.ripple {
   position: absolute;
   border-radius: 50%;
   background: rgba(var(--color-primary-rgb), 0.15);
   transform: scale(0);
   animation: rippleExpand 0.6s var(--ease-out-expo) forwards;
-  pointer-events: none;
+  pointer-events: none; /* Evita interferencia con clicks subsequentes */
 }
 
 @keyframes rippleExpand {
@@ -953,9 +953,36 @@ img, svg { display: block; max-width: 100%; }
   to   { transform: translateX(100%); }
 }
 
-.skeleton-text   { height: 14px; margin-bottom: var(--space-2); }
+.skeleton-text   { height: 14px; margin-bottom: var(--space-2); width: 100%; }
 .skeleton-title  { height: 24px; width: 60%; margin-bottom: var(--space-4); }
-.skeleton-circle { border-radius: 50%; }
+.skeleton-circle { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; }
+
+/* Dashboard Skeleton */
+.skeleton-dashboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-5);
+  padding: var(--space-2);
+}
+
+.skeleton-card {
+  height: 120px;
+  background: var(--color-neutral-100);
+  border-radius: var(--radius-xl);
+}
+
+/* Table Skeleton */
+.skeleton-table {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.skeleton-row {
+  height: 48px;
+  background: var(--color-neutral-100);
+  border-radius: var(--radius-md);
+}
 
 /* --- 14. TOAST NOTIFICATION --- */
 .toast-container {
@@ -981,6 +1008,18 @@ img, svg { display: block; max-width: 100%; }
   box-shadow: var(--shadow-xl);
   animation: toastIn var(--duration-slow) var(--ease-out-expo) both;
   max-width: 360px;
+  border-left: 4px solid transparent;
+}
+
+.toast--success { border-left-color: var(--color-success); }
+.toast--error   { border-left-color: var(--color-error); background: #202124; }
+.toast--warning { border-left-color: var(--color-warning); }
+.toast--info    { border-left-color: var(--color-primary); }
+
+.toast-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 .toast--exit {
