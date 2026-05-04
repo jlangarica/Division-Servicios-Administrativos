@@ -140,15 +140,7 @@ sequenceDiagram
         S->>S: Validar pertenencia y rol
         S->>C: set(session, 30min)
     end
-    S-->>B: SessionDTO / null
-    alt Sesión Válida
-        B->>B: Renderiza Sidebar + Dashboard Bento
-    else Sesión Inválida
-        B->>B: Carga View_Error_Auth
-    end
-```
-
----
+    S-->>B: SessionDTO /---
 
 ## 📂 Estructura de Archivos
 
@@ -166,20 +158,22 @@ compras-fr/
     ├── Services/
     │   ├── AuthService.gs
     │   ├── ExpedienteService.gs
-    │   └── OcrService.gs   # <-- nuevo servicio Gemini OCR
+    │   ├── DashboardService.gs   # <-- Analíticas y Bento-Grid
+    │   ├── SupabaseService.gs    # <-- Integración Histórico DB
+    │   └── OcrService.gs         # <-- Inteligencia Gemini OCR
     │
     └── ui/
-        │   Index.html
-        │   scripts.html
-        │   styles.html
+        │   Index.html            # Shell Principal (Layout Sidebar)
+        │   scripts.html          # Router y Handlers Globales
+        │   styles.html           # Design System (Tokens & Utils)
         │
         └── modules/
-            ├── View_Dashboard.html
-            ├── View_Solicitudes.html
-            ├── View_Expedientes.html
-            ├── View_Catalogos.html
-            ├── View_Error_Auth.html
-            └── View_Nueva_Solicitud.html   # <-- actualizado con stepper y IA
+            ├── View_Dashboard.html       # Dashboard Editorial / Bento-Grid
+            ├── View_Solicitudes.html     # Listado Maestro
+            ├── View_Expedientes.html     # Biblioteca de Expedientes
+            ├── View_Gestion_Folio.html   # Control Administrativo
+            ├── View_Error_Auth.html      # Pantalla de Acceso Denegado
+            └── View_Nueva_Solicitud.html # Intake Pro (Split-View + AI)
 ```
 
 ---
@@ -189,65 +183,58 @@ compras-fr/
 | Componente | Tecnologías |
 |------------|------------|
 | **Runtime** | Google Apps Script (V8) |
-| **Frontend** | HTML5, CSS3 (Flex/Grid), JavaScript (ES2019+) |
-| **Diseño** | DM Sans, DM Serif Display, CSS Custom Properties |
-| **Persistencia** | Google Sheets (DB), Drive (Blobs) |
-| **Optimización** | CacheService, Batch IO |
-| **DevOps** | Clasp CLI, Git, VS Code |
+| **Database** | Google Sheets (Transaccional) + Supabase (Histórico) |
+| **Artificial Intelligence** | Gemini 3 Flash Lite (Google AI Studio) |
+| **Frontend** | HTML5, Modern CSS (Grid/Flex), Vanilla JS (ES2019+) |
+| **Typography** | DM Sans, DM Serif Display (Google Fonts) |
+| **Performance** | CacheService (User/Script), RPC JSON Serialization |
+| **DevOps** | Clasp CLI, ESLint, Git |
 
 ---
 
 ## 🤖 Integración Gemini OCR (AI)
 
 ### Visión General
-- **Modelo**: `gemini-3-flash-lite-preview` (el modelo disponible en Google AI Studio).
-- **Endpoint**: `https://generativelanguage.googleapis.com/v1beta/models/{MODEL_ID}:generateContent`.
-- **Seguridad**: La API‑Key (`GEMINI_API_KEY`) se lee desde `PropertiesService` y nunca se hardcodea.
-- **Prompt**: Reglas de auditoría documental (clasificación, folios, negativa, tabla de insumos).
-- **Schema**: JSON Schema estricto para garantizar que la respuesta sea parseable.
-- **Sanitización**: Eliminación de bloques Markdown (```` ```json ````) y caracteres de control antes del `JSON.parse`.
+- **Modelo**: `gemini-3-flash-lite-preview` para máxima velocidad y precisión en extracción tabular.
+- **Protocolo**: Ingesta atómica mediante serialización JSON para evitar errores de transmisión en objetos complejos.
+- **Validación Estricta**: Pipeline de 4 pasos (Lectura, Identificación, Extracción, Validación) con feedback visual al usuario.
+- **Batch Processing**: Capacidad de procesar múltiples ítems de solicitud en un solo bloque transaccional protegido por `LockService`.
 
-### Flujo de Datos
+### Flujo de Datos Inteligente
 ```mermaid
 sequenceDiagram
     participant U as Usuario
-    participant UI as View_Nueva_Solicitud
+    participant UI as Intake Form
     participant AR as AsyncRunner
     participant EP as processOcrEndpoint
     participant OCR as OcrService.gs
-    participant G as Gemini API
+    participant G as Gemini AI
+    participant S as Supabase
 
-    U->>UI: Selecciona PDF
-    UI->>UI: render PDF + muestra overlay "Procesando documento..."
-    UI->>AR: google.script.run('processOcrEndpoint', base64, mime)
-    AR->>EP: llama al endpoint
-    EP->>OCR: analyzeDocumentWithGemini()
-    OCR->>G: POST payload (systemPrompt + PDF)
-    G-->>OCR: JSON estructurado
-    OCR->>OCR: sanitize + parse
-    OCR-->>EP: objeto {es_negativa, numero_oficio_solicitud, ...}
-    EP-->>AR: devuelve datos
-    AR-->>UI: Promise resuelta
-    UI->>UI: rellena campos con animación cascade
-    UI->>UI: oculta overlay, muestra toast success
+    U->>UI: Carga PDF Solicitud
+    UI->>UI: Render PDF + Stepper "Iniciando AI"
+    UI->>AR: google.script.run(Payload JSON)
+    AR->>EP: llama endpoint transaccional
+    EP->>OCR: analyzeDocument()
+    OCR->>G: POST (PDF + System Prompt)
+    G-->>OCR: JSON Estructurado
+    OCR->>S: matchArticles(extractedItems)
+    S-->>OCR: descripciones históricas
+    OCR-->>EP: Datos enriquecidos
+    EP-->>UI: Resolución con animación Cascade
 ```
-
-### Manejo de Errores
-- **Clave faltante** → `console.warn` en `Config.gs` y fallback sin OCR.
-- **Respuesta vacía o JSON inválido** → excepción con mensaje descriptivo, overlay muestra error y permite entrada manual.
-- **Timeout / cuota** → se captura y se muestra toast de fallback.
 
 ---
 
-## 🎨 UI / UX – Stepper de Procesamiento
+## 🎨 UI / UX – Diseño Editorial y Bento‑Grid
 
-El overlay de procesamiento ahora usa un **Progress Ring** y un **Micro‑Stepper vertical** con animaciones de spinner y check‑mark. Cada paso avanza automáticamente (≈2‑4 s) y se sincroniza con la respuesta real del servidor. Los campos del formulario se rellenan con una **animación cascade** (`field-filled`) que destaca visualmente los datos autogenerados.
+El sistema rompe con la estética tradicional de Apps Script para ofrecer una experiencia **Premium SaaS**:
 
-### Componentes clave
-- `process-steps` → lista de pasos (Leyendo documento, Identificando campos, Extrayendo datos, Validando información).
-- `process-ring` → anillo SVG con porcentaje en tiempo real.
-- `field-filled` → animación que ilumina el input autocompletado.
-- `Toast.show()` → notificaciones breves para éxito o fallo.
+### Elementos de Diseño
+- **Bento Dashboard**: Widgets de estadísticas con layouts asimétricos y sombras suaves.
+- **Sidebar Dinámico**: Navegación colapsable con estados activos claros y micro-interacciones.
+- **Intake Split-View**: Interfaz dividida que permite ver el PDF original en el lado izquierdo mientras se valida la extracción de IA en el derecho.
+- **Animaciones Cascade**: Los datos extraídos por la IA se inyectan con un efecto de cascada visual, permitiendo al usuario identificar fácilmente qué campos han sido autocompletados.
 
 ---
 
@@ -255,9 +242,9 @@ El overlay de procesamiento ahora usa un **Progress Ring** y un **Micro‑Steppe
 
 | Herramienta | Versión mínima |
 |------------|----------------|
-| Node.js | ≥ 16.x |
-| clasp | ≥ 2.x |
-| Git | ≥ 2.x |
+| Node.js | ≥ 16.x |
+| clasp | ≥ 2.x |
+| Git | ≥ 2.x |
 
 ### Pasos de Instalación
 ```bash
@@ -268,42 +255,29 @@ clasp login
 clasp clone "TU_SCRIPT_ID"
 ```
 
-#### Propiedades del script (clave API)
-1. Abre el proyecto en el editor de Apps Script.
-2. **⚙️ Configuración → Propiedades del script**.
-3. Añade la clave:
-   - **Clave**: `GEMINI_API_KEY`
-   - **Valor**: `<tu‑token‑de‑Google‑AI‑Studio>`
-4. Guarda.
+#### Secretos y Propiedades
+El sistema utiliza `PropertiesService` para manejar claves sensibles:
+- `GEMINI_API_KEY`: Token de acceso a la API de Google AI.
+- `SUPABASE_URL`: URL del proyecto Supabase.
+- `SUPABASE_KEY`: Service role o anon key para acceso a la DB.
 
 ---
 
 ## 🚀 Despliegue y CI/CD
 
-```bash
-# Cada push a main
-npm run lint      # lint con eslint (solo para .gs vía eslint‑plugin‑gas)
-npm run test      # pruebas unitarias con clasp‑test (mock de Services)
-clasp push        # despliegue a Google Apps Script
-```
-
-Los **triggers** (`doGet`, `onOpen`) están definidos en `appsscript.json`.  El proceso de despliegue mantiene versiones sin perder historial.
+El flujo de trabajo está optimizado para la estabilidad institucional:
+1. **Linting**: Verificación de estándares de código con `npm run lint`.
+2. **Atomic Push**: Despliegue sincronizado de archivos GS y HTML mediante `clasp push`.
+3. **Control de Versiones**: Cada hito se etiqueta en Git y se crea una nueva versión en el manifiesto de Apps Script.
 
 ---
 
-## 📚 Guía de Estilo del Código
+## 📚 Guía de Estilo del Código (Clean Code)
 
-### Backend (GAS)
-- **Nomenclatura**: `UPPER_SNAKE_CASE` para constantes, `camelCase` para funciones/variables, `PascalCase` para clases.
-- **JSDoc** obligatorio en todas las funciones públicas.
-- **Batching** obligatorio: nunca usar `getValue/setValue` dentro de loops.
-- **LockService** para operaciones críticas (generación atómica de folios).
-
-### Frontend (HTML/CSS/JS)
-- **BEM Lite** para clases (`.card`, `.step-item`, `.field-filled`).
-- **Custom Properties** (`--color-primary`, `--spacing-lg`).
-- **Sin CSS/JS externos locales**; se incluyen vía CDN cuando sea necesario.
-- **Eventos**: usar `google.script.run` con `.withSuccessHandler()` y `.withFailureHandler()`.
+- **SOLID Principles**: Servicios especializados con responsabilidad única.
+- **Atomic Operations**: Uso de `LockService` en todas las escrituras a Sheets para evitar colisiones.
+- **Type Safety (JS)**: Interfaces documentadas vía JSDoc para asegurar consistencia en el intercambio de datos entre cliente y servidor.
+- **No Side Effects**: Funciones puras siempre que sea posible para facilitar el testing.
 
 ---
 
@@ -311,15 +285,31 @@ Los **triggers** (`doGet`, `onOpen`) están definidos en `appsscript.json`.  El 
 
 | Técnica | Implementación | Ganancia estimada |
 |---------|----------------|-------------------|
-| Cache de Sesión | `CacheService` (TTL 30 min) | -98 % latencia auth |
-| SPA Router | Inyección DOM sin recarga | Navegación instantánea |
-| Batch IO | `getValues()` → procesar en memoria | Reducción cuota API 80 % |
-| Passive Listeners | `{ passive: true }` en scroll/drag | Suavidad en móviles |
-| Asset Preconnect | `<link rel="preconnect" href="https://fonts.googleapis.com">` | +120 ms carga fuentes |
+| Layered Caching | CacheService para Usuarios y Configuración | -95% DB Overhead |
+| JSON RPC | Serialización manual para saltar cuellos de botella de GAS | Estabilidad total en payloads grandes |
+| Batch Writing | `setValues()` masivo en ExpedienteService | Cumplimiento de límites de ejecución |
+| Resource Preload | Conexión anticipada a CDN de Google Fonts | Renderizado FCP < 800ms |
 
 ---
 
 ## 🗺️ Roadmap
+
+- [x] **v1.5.0** – Integración de Inteligencia Supabase y Módulo Dashboard Bento.
+- [x] **v1.6.0** – Pipeline de OCR atómico y Split-View Intake.
+- [ ] **v2.0.0** – Módulo de Comités y Adjudicaciones con firma digital.
+- [ ] **v2.1.0** – Reportes exportables en Excel Pro y PDFs corporativos dinámicos.
+- [ ] **v3.0.0** – Motor de predicción de demanda basado en histórico Supabase.
+
+---
+
+<div align="center">
+
+**◈ Sistema de Compras HCG** · Hospital Civil de Guadalajara
+*División de Servicios Administrativos*
+*Desarrollado para la Excelencia Operativa*
+
+</div>
+ Roadmap
 
 - **v1.3.0** – Vertical Stepper completo, validación de tabla de insumos, integración con FSM.
 - **v2.0.0** – Reportes automáticos, tablero de control gerencial avanzado, soporte multilingüe.
