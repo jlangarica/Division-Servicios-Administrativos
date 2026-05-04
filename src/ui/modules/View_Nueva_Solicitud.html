@@ -234,25 +234,24 @@
    * Callback del Google Picker (Global para evitar pérdida de referencia)
    * Maneja las acciones PICKED (archivo seleccionado) y CANCEL.
    */
-  window.handlePickerResult = function(result) {
+  window.handlePickerResult = async function(result) {
     console.log("=== PICKER CALLBACK DISPARADO ===");
     console.log("Acción:", result.action);
 
     if (result.action === google.picker.Action.PICKED) {
       const doc = result.docs[0];
-      // Captura de datos del archivo seleccionado
-      const fileId = doc.id;
+      const fileId = String(doc.id);
       const fileName = doc.name;
-      
+
       // Persistencia en estado global
-      window._selectedFileId = String(fileId);
-      console.log("✅ ID de Archivo persistido en window._selectedFileId:", window._selectedFileId);
-      
-      // Inicia el stepper visual
+      window._selectedFileId = fileId;
+      console.log("✅ ID de Archivo persistido:", window._selectedFileId);
+
+      // Inicia el stepper visual (UNA sola vez)
       startProcessStepper();
       Toast.show('📂 Archivo recibido: ' + fileName);
-      
-      // Activar bloqueo de UI DESPUÉS de PICKED (no antes, para no bloquear el Picker)
+
+      // Activar bloqueo de UI DESPUÉS de PICKED
       document.body.classList.add('is-syncing');
 
       // Renderizar preview
@@ -262,71 +261,58 @@
       if (emptyState) emptyState.style.display = 'none';
       document.getElementById('pdf-viewer-container').style.display = 'flex';
 
-      // Inicia el stepper visual
-      startProcessStepper();
+      // LLAMADA AL SERVIDOR — AsyncRunner (consistente con el resto de la app)
+      try {
+        const ocrResult = await AsyncRunner.run('processOcrEndpoint', fileId);
+        console.log("Servidor respondió:", ocrResult);
 
-      // LLAMADA CRÍTICA AL SERVIDOR
-      google.script.run
-        .withSuccessHandler(ocrResult => {
-          console.log("Servidor respondió:", ocrResult);
-          
-          if (ocrResult && !ocrResult.error) {
-            completeProcessStepper(true);
-            Toast.show('✅ Análisis completado');
+        if (ocrResult && !ocrResult.error) {
+          completeProcessStepper(true);
+          Toast.show('✅ Análisis completado');
 
-            const fill = (id, val, delay) => setTimeout(() => {
-              const el = document.getElementById(id);
-              if (el && val) {
-                el.value = val;
-                el.classList.add('field-filled');
-                el.dispatchEvent(new Event('change', { bubbles: true }));
-              }
-            }, delay);
-
-            fill('intake-oficio', ocrResult.numero_oficio_solicitud, 200);
-            fill('intake-servicio', ocrResult.servicio_solicitante, 400);
-            fill('intake-fecha', ocrResult.fecha_sello_recepcion || ocrResult.fecha_elaboracion, 600);
-
-            if (ocrResult.es_negativa) {
-              setTimeout(() => {
-                const chk = document.getElementById('intake-has-negativa');
-                if (chk) {
-                  chk.checked = true;
-                  chk.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-                fill('intake-fecha-negativa', ocrResult.fecha_hora_negativa?.split(' ')[0], 100);
-              }, 800);
+          const fill = (id, val, delay) => setTimeout(() => {
+            const el = document.getElementById(id);
+            if (el && val) {
+              el.value = val;
+              el.classList.add('field-filled');
+              el.dispatchEvent(new Event('change', { bubbles: true }));
             }
+          }, delay);
 
-            window._ocrExtractedItems = ocrResult.items || [];
-          } else {
-            console.error("Error en respuesta OCR:", ocrResult?.error);
-            completeProcessStepper(false);
-            Toast.show('❌ Error: ' + (ocrResult?.error || 'Respuesta inválida'));
+          fill('intake-oficio', ocrResult.numero_oficio_solicitud, 200);
+          fill('intake-servicio', ocrResult.servicio_solicitante, 400);
+          fill('intake-fecha', ocrResult.fecha_sello_recepcion || ocrResult.fecha_elaboracion, 600);
+
+          if (ocrResult.es_negativa) {
+            setTimeout(() => {
+              const chk = document.getElementById('intake-has-negativa');
+              if (chk) {
+                chk.checked = true;
+                chk.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+              fill('intake-fecha-negativa', (ocrResult.fecha_hora_negativa || '').split(' ')[0], 100);
+            }, 800);
           }
-          
-          // Desbloquear UI
-          const btn = document.getElementById('btn-submit-intake');
-          if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = 'Iniciar Gestión DSA';
-          }
-          document.body.classList.remove('is-syncing');
-        })
-        .withFailureHandler(err => {
-          console.error("ERROR CRÍTICO EN EL SERVIDOR:", err);
+
+          window._ocrExtractedItems = ocrResult.items || [];
+        } else {
+          console.error("Error en respuesta OCR:", ocrResult ? ocrResult.error : 'null');
           completeProcessStepper(false);
-          Toast.show('❌ Error de conexión con el servidor');
-          
-          // Desbloquear UI
-          const btn = document.getElementById('btn-submit-intake');
-          if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = 'Iniciar Gestión DSA';
-          }
-          document.body.classList.remove('is-syncing');
-        })
-        .processOcrEndpoint(fileId); 
+          Toast.show('❌ Error: ' + (ocrResult ? ocrResult.error : 'Respuesta inválida'));
+        }
+      } catch (err) {
+        console.error("ERROR CRÍTICO EN EL SERVIDOR:", err);
+        completeProcessStepper(false);
+        Toast.show('❌ Error de conexión con el servidor');
+      } finally {
+        // Desbloquear UI
+        const btn = document.getElementById('btn-submit-intake');
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = 'Iniciar Gestión DSA';
+        }
+        document.body.classList.remove('is-syncing');
+      }
 
     } else if (result.action === google.picker.Action.CANCEL) {
       document.body.classList.remove('is-syncing');

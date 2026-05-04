@@ -622,7 +622,6 @@ function renderPDF(data) {
 async function handleProcessIntake(event) {
   event.preventDefault();
 
-  // 🛡️ Guardia: Validar que hay un archivo seleccionado antes de intentar el envío
   if (!window._selectedFileId) {
     Toast.show('⚠️ Primero selecciona el oficio PDF usando el botón de carga.');
     return;
@@ -630,41 +629,47 @@ async function handleProcessIntake(event) {
 
   const btn = document.getElementById('btn-submit-intake');
   btn.classList.add('loading');
-  
+
   try {
-    // 🔍 Verificación final antes de construir el objeto
-    const currentFileId = window._selectedFileId;
-    console.log("🔍 Verificación Pre-Envío:", { currentFileId });
+    const currentFileId = String(window._selectedFileId);
 
-    if (!currentFileId) {
-       Toast.show('❌ Error: El ID del archivo se perdió. Intenta subirlo de nuevo.');
-       btn.classList.remove('loading');
-       return;
-    }
-
-    const intakeData = {
-      fileId: String(currentFileId),
-      formData: {
-        tipo_tramite: document.getElementById('intake-tipo').value,
-        fecha_recepcion: document.getElementById('intake-fecha').value,
-        servicio_solicitante: document.getElementById('intake-servicio').value,
-        oficio_solicitud: document.getElementById('intake-oficio').value,
-        tiene_negativa: document.getElementById('intake-has-negativa').checked,
-        fecha_negativa: document.getElementById('intake-fecha-negativa').value,
-        atiende: AppState.user.email
-      },
-      ocrItems: window._ocrExtractedItems || []
+    // ✅ SANITIZAR: Construir formData limpio, sin null/undefined
+    const formData = {
+      tipo_tramite: document.getElementById('intake-tipo').value || '',
+      fecha_recepcion: document.getElementById('intake-fecha').value || '',
+      servicio_solicitante: document.getElementById('intake-servicio').value || '',
+      oficio_solicitud: document.getElementById('intake-oficio').value || '',
+      atiende: AppState.user.email || ''
     };
 
-    console.log("🚀 ENVIANDO AL SERVIDOR:", intakeData);
+    // Solo agregar campos opcionales si tienen valor real
+    const tieneNegativa = document.getElementById('intake-has-negativa').checked;
+    if (tieneNegativa) {
+      formData.tiene_negativa = true;
+      const fechaNeg = document.getElementById('intake-fecha-negativa').value;
+      if (fechaNeg) formData.fecha_negativa = fechaNeg;
+    }
 
-    const res = await AsyncRunner.run('processIntake', intakeData);
-    
+    // ✅ SANITIZAR: Construir payload plano sin propiedades undefined
+    const intakeData = {
+      fileId: currentFileId,
+      formData: formData
+    };
+
+    // Solo agregar ocrItems si existe y tiene datos reales
+    if (window._ocrExtractedItems && Array.isArray(window._ocrExtractedItems) && window._ocrExtractedItems.length > 0) {
+      intakeData.ocrItems = window._ocrExtractedItems;
+    }
+
+    // Deep-clone para asegurar objeto plano serializable
+    const safePayload = JSON.parse(JSON.stringify(intakeData));
+    console.log('🚀 ENVIANDO AL SERVIDOR (sanitizado):', safePayload);
+
+    const res = await AsyncRunner.run('processIntake', safePayload);
+
     if (res.success) {
-      // ✅ Limpiar estado global tras éxito
       window._selectedFileId = null;
       window._ocrExtractedItems = null;
-      
       Toast.show('✅ ¡Folio generado: ' + res.folio);
       navigateMenu(null, 'ui/modules/View_Solicitudes');
     } else {
