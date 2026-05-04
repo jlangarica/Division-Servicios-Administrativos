@@ -148,7 +148,8 @@ function processIntake(payload) {
       uuid: idInterno,
       folio: folioDsa,
       viewUrl: file.getUrl(),
-      fileId: file.getId()
+      fileId: file.getId(),
+      folderId: expedienteFolder.getId()
     };
 
   } catch (error) {
@@ -442,6 +443,74 @@ function processOcrItemsBatch(payloadData) {
       }
       
       console.log(`[processOcrItemsBatch] Se registraron ${items.length} bienes para el folio ${intakeRes.folio}`);
+
+      // ==============================================================
+      // INTEGRACIÓN SUPABASE: Consultar Historial y Crear Sheet
+      // ==============================================================
+      try {
+        if (SupabaseService.isConfigured()) {
+          // Limpiar códigos OCR a enteros puros (schema SQL INTEGER)
+          const codigosPuros = items
+            .map(i => parseInt(String(i.codigo_insumo).replace(/\D/g, ''), 10))
+            .filter(val => !isNaN(val) && val > 0);
+
+          const codigosUnicos = [...new Set(codigosPuros)];
+
+          if (codigosUnicos.length > 0) {
+            console.log('[Supabase] Buscando historial para códigos:', codigosUnicos);
+            const historial = SupabaseService.getHistorialPorCodigos(codigosUnicos);
+
+            if (historial.length > 0) {
+              // Crear Google Sheet y moverlo a la carpeta del expediente
+              const nombreSheet = `Historial_Proveedores_${intakeRes.folio}`;
+              const newSs = SpreadsheetApp.create(nombreSheet);
+
+              const driveFile = DriveApp.getFileById(newSs.getId());
+              const targetFolder = DriveApp.getFolderById(intakeRes.folderId);
+              driveFile.moveTo(targetFolder);
+
+              // Construir datos en bloque (batch write)
+              const hoja = newSs.getSheets()[0];
+              hoja.setName('Historial');
+
+              const cabeceras = [
+                'CÓDIGO', 'ARTÍCULO (OCR/DB)', 'PROVEEDOR',
+                'CANTIDAD COMPRADA', 'PRECIO UNIT.', 'IMPORTE SIN IVA',
+                'FECHA ALBARÁN', 'AÑO', 'ALMACÉN'
+              ];
+
+              const dataSheet = [cabeceras];
+              historial.forEach(row => {
+                dataSheet.push([
+                  row.mov_art_codigo,
+                  row.mov_art_deno,
+                  row.division_nom,
+                  row.mov_cantidad,
+                  row.mov_precio_lin,
+                  row.siniva,
+                  row.mov_fecha_alb,
+                  row.mov_ejercicio,
+                  row.almacen_deno
+                ]);
+              });
+
+              // Inyección en bloque y formato institucional
+              hoja.getRange(1, 1, dataSheet.length, cabeceras.length).setValues(dataSheet);
+              hoja.getRange('A1:I1').setFontWeight('bold').setBackground('#e8eaed').setFontFamily('DM Sans');
+              hoja.setFrozenRows(1);
+              hoja.autoResizeColumns(1, cabeceras.length);
+
+              console.log(`[Supabase] Historial creado: ${historial.length} registros en ${nombreSheet}`);
+            } else {
+              console.log('[Supabase] Sin compras previas para estos insumos.');
+            }
+          }
+        }
+      } catch (errSupabase) {
+        // Try-Catch interno: si Supabase falla, el folio principal SÍ se guarda.
+        console.error('[Supabase] Error no bloqueante al generar historial:', errSupabase);
+      }
+      // ==============================================================
     }
 
     SpreadsheetApp.flush();
