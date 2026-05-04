@@ -91,9 +91,9 @@
 
     <div id="app-content" style="flex:1; padding:var(--space-8); display:flex; flex-direction:column; overflow-y:auto; position:relative;">
       <!-- Auth Loader -->
-      <div id="auth-loader" class="loader-container">
-        <div class="loader-ring"></div>
-        <div class="loader-dots">
+      <div id="auth-loader" class="loader-container" role="status" aria-live="polite">
+        <div class="loader-ring" aria-hidden="true"></div>
+        <div class="loader-dots" aria-hidden="true">
           <span></span><span></span><span></span>
         </div>
         <p class="loader-text">Verificando credenciales institucionales</p>

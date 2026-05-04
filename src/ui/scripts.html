@@ -141,10 +141,13 @@ function navigateMenu(event, viewPath) {
   document.querySelectorAll('.nav-btn').forEach(function(btn) {
     btn.classList.remove('active');
     btn.setAttribute('aria-selected', 'false');
+    btn.setAttribute('tabindex', '-1'); // Roving tabindex
   });
   if (event && event.currentTarget) {
-    event.currentTarget.classList.add('active');
-    event.currentTarget.setAttribute('aria-selected', 'true');
+    const current = event.currentTarget;
+    current.classList.add('active');
+    current.setAttribute('aria-selected', 'true');
+    current.setAttribute('tabindex', '0');
   }
 
   // Update Breadcrumbs
@@ -262,7 +265,7 @@ function loadViewContent(viewPath, root) {
   }
 
   // 2. Cache MISS -> Pedir al servidor
-  root.innerHTML = `<div class="view-transition"><div class="loader-container" style="min-height:30vh;"><div class="loader-ring"></div></div></div>`;
+  root.innerHTML = `<div class="view-transition"><div class="loader-container" style="min-height:30vh;" role="status" aria-live="polite"><div class="loader-ring" aria-hidden="true"></div><p class="loader-text">Cargando módulo...</p></div></div>`;
 
   AsyncRunner.run('include', viewPath)
     .then(html => {
@@ -328,11 +331,12 @@ function trapFocus(element) {
 
 /* --- MODAL --- */
 function showModal(title, message, onConfirm) {
+  const previousFocus = document.activeElement;
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML =
-    '<div class="modal-content">' +
-      '<h2 style="font-size:var(--text-lg);font-weight:700;color:var(--color-neutral-900);margin-bottom:var(--space-4);">' + title + '</h2>' +
+    '<div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="modal-title">' +
+      '<h2 id="modal-title" style="font-size:var(--text-lg);font-weight:700;color:var(--color-neutral-900);margin-bottom:var(--space-4);">' + title + '</h2>' +
       '<p style="font-size:var(--text-sm);color:var(--color-neutral-600);line-height:var(--leading-loose);margin-bottom:var(--space-6);">' + message + '</p>' +
       '<div style="display:flex;gap:var(--space-3);justify-content:flex-end;">' +
         '<button class="btn btn-secondary" id="modal-cancel">Cancelar</button>' +
@@ -340,21 +344,24 @@ function showModal(title, message, onConfirm) {
       '</div>' +
     '</div>';
 
+  const cleanup = () => {
+    overlay.remove();
+    if (previousFocus && previousFocus.focus) previousFocus.focus();
+  };
+
   document.body.appendChild(overlay);
 
   trapFocus(overlay.querySelector('.modal-content'));
 
-  overlay.querySelector('#modal-cancel').addEventListener('click', function() {
-    overlay.remove();
-  });
+  overlay.querySelector('#modal-cancel').addEventListener('click', cleanup);
 
   overlay.querySelector('#modal-confirm').addEventListener('click', function() {
-    overlay.remove();
+    cleanup();
     if (onConfirm) onConfirm();
   });
 
   overlay.addEventListener('click', function(e) {
-    if (e.target === overlay) overlay.remove();
+    if (e.target === overlay) cleanup();
   });
 }
 
@@ -362,25 +369,32 @@ function showModal(title, message, onConfirm) {
  * Solicita el motivo de rechazo mediante un modal institucional (sustituye prompt()).
  */
 function requestRejectReason() {
+  const previousFocus = document.activeElement;
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
-      <div class="modal-content">
-        <h2 style="font-size:var(--text-lg);font-weight:700;margin-bottom:var(--space-4);">Justificación de Rechazo</h2>
+      <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="reject-title">
+        <h2 id="reject-title" style="font-size:var(--text-lg);font-weight:700;margin-bottom:var(--space-4);">Justificación de Rechazo</h2>
         <textarea id="reject-reason-input" class="input-field" rows="4" placeholder="Describa el motivo del rechazo (obligatorio)..." style="margin-bottom:var(--space-4); width:100%; border:1px solid var(--color-neutral-300); border-radius:8px; padding:12px;"></textarea>
         <div style="display:flex;gap:var(--space-3);justify-content:flex-end;">
           <button class="btn btn-secondary" id="modal-cancel">Cancelar</button>
           <button class="btn btn-primary" id="modal-confirm" style="background:var(--color-error); border-color:var(--color-error);">Confirmar Rechazo</button>
         </div>
       </div>`;
+    
+    const cleanup = () => {
+      overlay.remove();
+      if (previousFocus && previousFocus.focus) previousFocus.focus();
+    };
+
     document.body.appendChild(overlay);
     
-    overlay.querySelector('#modal-cancel').onclick = () => { overlay.remove(); resolve(null); };
+    overlay.querySelector('#modal-cancel').onclick = () => { cleanup(); resolve(null); };
     overlay.querySelector('#modal-confirm').onclick = () => {
       const reason = overlay.querySelector('#reject-reason-input').value.trim();
       if (!reason) { Toast.show('El motivo es obligatorio'); return; }
-      overlay.remove();
+      cleanup();
       resolve(reason);
     };
   });
@@ -413,17 +427,64 @@ function renderError() {
 
 
 /* --- KEYBOARD NAV --- */
+function initNavigationKeyboard() {
+  const tabList = document.querySelector('[role="tablist"]');
+  if (!tabList) return;
+
+  const tabs = Array.from(tabList.querySelectorAll('[role="tab"]'));
+  
+  // Sincronizar tabindexes iniciales basados en la clase 'active'
+  tabs.forEach(tab => {
+    tab.setAttribute('tabindex', tab.classList.contains('active') ? '0' : '-1');
+  });
+
+  tabList.addEventListener('keydown', e => {
+    const currentIndex = tabs.indexOf(document.activeElement);
+    if (currentIndex === -1) return;
+
+    let nextIndex;
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+        nextIndex = (currentIndex + 1) % tabs.length;
+        break;
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+        break;
+      case 'Home':
+        nextIndex = 0;
+        break;
+      case 'End':
+        nextIndex = tabs.length - 1;
+        break;
+      default:
+        return;
+    }
+
+    e.preventDefault();
+    
+    // Roving Tabindex: Solo el elemento enfocado/activo es tabulable
+    tabs.forEach((t, i) => t.setAttribute('tabindex', i === nextIndex ? '0' : '-1'));
+    tabs[nextIndex].focus();
+  });
+}
+
+// Inicialización inmediata y ante carga de DOM
+initNavigationKeyboard();
+document.addEventListener('DOMContentLoaded', initNavigationKeyboard);
+
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
-    var modal = document.querySelector('.modal-overlay');
-    if (modal) {
-      // Ignorar si es el modal de ingreso de oficio ya que no tiene clase .modal-overlay directa sino display
-      if(modal.id !== 'modal-ingreso-oficio') {
-          modal.remove();
-      }
+    const overlay = document.querySelector('.modal-overlay');
+    if (overlay) {
+      // Si hay un modal con un botón de cancelar, disparar su click para activar el cleanup y restauración de foco
+      const cancelBtn = overlay.querySelector('#modal-cancel');
+      if (cancelBtn) cancelBtn.click();
+      else overlay.remove();
     }
     
-    var modalOficio = document.getElementById('modal-ingreso-oficio');
+    const modalOficio = document.getElementById('modal-ingreso-oficio');
     if (modalOficio && modalOficio.style.display === 'flex') {
       cerrarModalIngresoOficio();
     }
