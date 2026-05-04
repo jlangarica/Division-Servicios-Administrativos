@@ -22,32 +22,31 @@
  * Registra el ingreso de un oficio, creando una entidad digital centralizada.
  * Utiliza LockService para garantizar la atomicidad del folio.
  *
- * @param {{ fileId: string, formData: Object, ocrItems: Array }} payload Datos desde el Frontend.
+ * IMPORTANTE: Se reciben parámetros individuales (no un solo objeto) para evitar
+ * problemas de serialización con google.script.run cuando el payload contiene
+ * arrays anidados con valores null (ej. ocrItems desde Gemini AI).
+ *
+ * @param {string} fileId ID del archivo en Drive (subido via Picker).
+ * @param {Object} formData Datos del formulario de ingreso.
+ * @param {Array} [ocrItems] Items extraídos por Gemini AI (opcional).
  * @returns {Object} Respuesta {success, folio, viewUrl, fileId, error}
  */
-function processIntake(payload) {
-  // 0. Debug Log — Ver exactamente qué llega desde el navegador
+function processIntake(fileId, formData, ocrItems) {
+  // 0. Debug Log
   console.log('[processIntake] INICIO');
-  console.log('[processIntake] Type of payload:', typeof payload);
-  console.log('[processIntake] Raw Payload:', payload);
-  
-  if (typeof payload === 'string') {
-    try { payload = JSON.parse(payload); } catch(e) { console.error('Error parsing string payload:', e.message); }
+  console.log('[processIntake] fileId:', typeof fileId, fileId);
+  console.log('[processIntake] formData:', typeof formData, formData ? Object.keys(formData) : 'null');
+  console.log('[processIntake] ocrItems:', typeof ocrItems, ocrItems ? ocrItems.length : 'null');
+
+  // 1. Validación de parámetros individuales
+  if (!fileId || typeof fileId !== 'string' || fileId.trim() === '') {
+    return { success: false, error: 'Falta el identificador del archivo PDF.' };
+  }
+  if (!formData || typeof formData !== 'object') {
+    return { success: false, error: 'Faltan los datos del formulario.' };
   }
 
-  // 1. Validación exhaustiva de propiedades raíz
-  if (!payload) return { success: false, error: 'No se recibió ningún dato (payload null).' };
-  
-  // Soporte para múltiples nombres de campo por si hay discrepancia de versión
-  const fileId = payload.fileId || payload._selectedFileId; 
-  const formData = payload.formData;
-
-  console.log('[processIntake] Validated IDs:', { fileId, hasFormData: !!formData });
-
-  if (!fileId) return { success: false, error: 'Falta el identificador del archivo PDF.' };
-  if (!formData) return { success: false, error: 'Faltan los datos del formulario.' };
   const requiredFields = ['tipo_tramite', 'fecha_recepcion', 'servicio_solicitante', 'oficio_solicitud'];
-  
   for (const field of requiredFields) {
     if (!formData[field]?.trim()) {
       return { success: false, error: `El campo [${field}] es obligatorio.` };
