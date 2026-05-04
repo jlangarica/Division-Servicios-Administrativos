@@ -45,7 +45,7 @@
   <div style="flex: 0 0 400px; display:flex; flex-direction:column; gap:20px; position:relative;">
 
     <!-- OVERLAY DE PROCESAMIENTO (UX Stepper) -->
-    <div id="ocr-loading-overlay" class="process-overlay">
+    <div id="ocr-loading-overlay" class="process-overlay glass-effect">
       <div class="process-ring" id="process-ring">
         <svg viewBox="0 0 64 64" width="56" height="56">
           <circle cx="32" cy="32" r="28" fill="none" stroke="var(--color-neutral-200)" stroke-width="4"/>
@@ -127,7 +127,6 @@
 <style>
   .process-overlay {
     display:none; position:absolute; inset:0; z-index:20;
-    background:rgba(255,255,255,0.92); backdrop-filter:blur(8px);
     border-radius:var(--radius-lg);
     flex-direction:column; align-items:center; justify-content:center; gap:20px;
     padding: 32px;
