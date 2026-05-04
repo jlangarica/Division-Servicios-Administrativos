@@ -94,30 +94,7 @@ function processIntake(payloadData) {
     return { success: false, error: 'Faltan los datos del formulario.' };
   }
 
-// 4. Validar campos requeridos del formulario
-=======
-  console.log('[processIntake] fileId extraído:', fileId, '| tipo:', typeof fileId);
-  
-  if (!fileId || typeof fileId !== 'string' || fileId.trim() === '') {
-    console.error('[processIntake] FILEID INVÁLIDO - valor:', fileId, '| tipo:', typeof fileId);
-    return { success: false, error: 'Falta el identificador del archivo PDF (fileId).' };
-  }
-
-  // 3. Extraer y validar formData
-  var formData = payload.formData;
-  console.log('[processIntake] formData:', formData ? 'PRESENTE' : 'AUSENTE');
-  
-  if (!formData || typeof formData !== 'object') {
-    console.error('[processIntake] formData INVÁLIDO - valor:', formData);
-    return { success: false, error: 'Faltan los datos del formulario (formData).' };
-  }
-
-  // 4. Extraer ocrItems (opcional, puede venir vacío)
-  var ocrItems = Array.isArray(payload.ocrItems) ? payload.ocrItems : [];
-  console.log('[processIntake] ocrItems:', ocrItems.length, 'items');
-
   // 5. Validar campos requeridos del formulario
->>>>>>> 742d4b1b867f1deb851c183256ea005144397985
   var requiredFields = ['tipo_tramite', 'fecha_recepcion', 'servicio_solicitante', 'oficio_solicitud'];
   for (var i = 0; i < requiredFields.length; i++) {
     var field = requiredFields[i];
