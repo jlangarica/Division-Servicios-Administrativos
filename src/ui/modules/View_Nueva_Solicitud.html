@@ -347,6 +347,128 @@
 
 
   // ────────────────────────────────────────────────────────
+  //  PROCESAR INTAKE — Función CRÍTICA (definida AQUÍ para evitar problemas de scope)
+  // ────────────────────────────────────────────────────────
+  
+  window.handleProcessIntake = async function(event) {
+    event.preventDefault();
+    
+    console.log('[handleProcessIntake] === INICIO ===');
+    
+    // LEER fileId de MÚLTIPLES fuentes con prioridad estricta
+    // 1. window._selectedFileId (más persistente - variable global)
+    // 2. form.dataset.fileId (persistencia en el elemento form)
+    // 3. hidden-input.value (fallback final)
+    
+    const windowFileId = window._selectedFileId ? String(window._selectedFileId) : '';
+    const form = document.getElementById('form-nueva-solicitud');
+    const formFileId = form ? (form.dataset.fileId || '') : '';
+    const hiddenInput = document.getElementById('hidden-file-id');
+    const hiddenFileId = hiddenInput ? hiddenInput.value : '';
+    
+    // PRIORIDAD: window > form.dataset > hidden
+    const currentFileId = windowFileId || formFileId || hiddenFileId;
+    
+    console.log('[handleProcessIntake] windowFileId:', windowFileId);
+    console.log('[handleProcessIntake] formFileId:', formFileId);
+    console.log('[handleProcessIntake] hiddenFileId:', hiddenFileId);
+    console.log('[handleProcessIntake] currentFileId (final):', currentFileId);
+    
+    // Re-sincronizar TODAS las fuentes si tenemos un fileId válido
+    if (currentFileId) {
+      if (window._selectedFileId !== currentFileId) {
+        window._selectedFileId = currentFileId;
+        console.log('[handleProcessIntake] window._selectedFileId re-sincronizado');
+      }
+      if (form && form.dataset.fileId !== currentFileId) {
+        form.dataset.fileId = currentFileId;
+        console.log('[handleProcessIntake] form.dataset.fileId re-sincronizado');
+      }
+      if (hiddenInput && hiddenInput.value !== currentFileId) {
+        hiddenInput.value = currentFileId;
+        console.log('[handleProcessIntake] hidden-input.value re-sincronizado');
+      }
+    } else {
+      console.error('[handleProcessIntake] ⚠️ ALERTA CRÍTICA: currentFileId es VACÍO después de leer las 3 fuentes');
+      console.error('[handleProcessIntake] Estado actual: window._selectedFileId=', window._selectedFileId);
+    }
+
+    if (!currentFileId) {
+      Toast.show('⚠️ Primero selecciona el oficio PDF usando el botón de carga.');
+      return;
+    }
+
+    const btn = document.getElementById('btn-submit-intake');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.classList.add('loading');
+    btn.innerHTML = '<span>Generando Folio...</span>';
+
+    try {
+      // ── Construir payload UNIFICADO (1 solo argumento JSON — nunca se pierde) ──
+      const payload = {
+        fileId: currentFileId,
+        formData: {
+          tipo_tramite: document.getElementById('intake-tipo').value || '',
+          fecha_recepcion: document.getElementById('intake-fecha').value || '',
+          servicio_solicitante: document.getElementById('intake-servicio').value || '',
+          oficio_solicitud: document.getElementById('intake-oficio').value || '',
+          atiende: AppState.user.email || ''
+        },
+        ocrItems: (window._ocrExtractedItems && Array.isArray(window._ocrExtractedItems) && window._ocrExtractedItems.length > 0)
+          ? window._ocrExtractedItems
+          : []
+      };
+
+      // Solo agregar campos opcionales si tienen valor real
+      const tieneNegativa = document.getElementById('intake-has-negativa').checked;
+      if (tieneNegativa) {
+        payload.formData.tiene_negativa = true;
+        const fechaNeg = document.getElementById('intake-fecha-negativa').value;
+        if (fechaNeg) payload.formData.fecha_negativa = fechaNeg;
+      }
+
+      const payloadJson = JSON.stringify(payload);
+
+      console.log('[handleProcessIntake] 🚀 ENVIANDO → fileId:', currentFileId, 
+                  '| payload length:', payloadJson.length);
+
+      // ── LLAMADA DIRECTA con google.script.run (1 solo argumento JSON — nunca se pierde) ──
+      const res = await new Promise(function(resolve, reject) {
+        google.script.run
+          .withSuccessHandler(function(result) { resolve(result); })
+          .withFailureHandler(function(error) { reject(error); })
+          .processIntake(payloadJson);
+      });
+
+      console.log('[handleProcessIntake] ✅ Respuesta servidor:', res);
+
+      if (res && res.success) {
+        // Limpiar estado SOLO después de éxito confirmado
+        window._selectedFileId = null;
+        window._ocrExtractedItems = null;
+        if (hiddenInput) hiddenInput.value = '';
+        if (form) delete form.dataset.fileId;
+        
+        Toast.show('✅ ¡Folio generado: ' + res.folio);
+        navigateMenu(null, 'ui/modules/View_Solicitudes');
+      } else {
+        Toast.show('❌ Error: ' + (res ? res.error : 'Respuesta vacía del servidor'));
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
+    } catch (err) {
+      console.error('[handleProcessIntake] 💥 Error Crítico:', err);
+      Toast.show('❌ Error de red o conexión: ' + (err.message || err));
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+    } finally {
+      btn.classList.remove('loading');
+    }
+  };
+
+
+  // ────────────────────────────────────────────────────────
   //  STEPPER — Animación de Progreso
   // ────────────────────────────────────────────────────────
 
@@ -407,6 +529,17 @@
   // ────────────────────────────────────────────────────────
   //  UTILIDADES
   // ────────────────────────────────────────────────────────
+
+  // ────────────────────────────────────────────────────────
+  //  TOGGLE FECHA DE NEGATIVA — Función global para el onchange del checkbox
+  // ────────────────────────────────────────────────────────
+  
+  window.toggleNegativaDate = function(show) {
+    const container = document.getElementById('negativa-date-container');
+    if (container) {
+      container.style.display = show ? 'block' : 'none';
+    }
+  };
 
   function toggleNegativaDate(show) {
     const container = document.getElementById('negativa-date-container');

@@ -6,52 +6,48 @@
  * Registra el ingreso de un oficio, creando una entidad digital centralizada.
  * Utiliza LockService para garantizar la atomicidad del folio.
  *
- * NOTA: La firma fue cambiada de processIntake(payload) a
- * processIntake(fileId, formDataJson, ocrItemsJson) para evitar
- * el bug de google.script.run que pierde propiedades de objetos
- * anidados complejos. Los argumentos simples (strings) se transmiten
- * sin pérdida, como lo demuestra processOcrEndpoint(fileId).
+ * NOTA: La firma fue cambiada de processIntake(fileId, formDataJson, ocrItemsJson) a
+ * processIntake(payloadJson) para evitar el bug conocido de google.script.run que
+ * pierde el PRIMER argumento cuando se encadenan .withSuccessHandler/.withFailureHandler
+ * y se pasan múltiples argumentos (especialmente strings grandes).
+ * 
+ * El fileId viaja DENTRO del JSON payload, nunca como argumento separado.
+ * Este es el mismo patrón que ya funciona en processOcrEndpoint(fileId) con 1 solo argumento.
  *
- * @param {string} fileId - ID del archivo en Drive (string simple, nunca se pierde).
- * @param {string} formDataJson - FormData serializado como JSON string.
- * @param {string} ocrItemsJson - Items OCR serializados como JSON string (puede ser vacío).
+ * @param {string} payloadJson - JSON string con estructura: {fileId, formData, ocrItems}
  * @returns {Object} Respuesta {success, folio, viewUrl, fileId, error}
  */
-function processIntake(fileId, formDataJson, ocrItemsJson) {
+function processIntake(payloadJson) {
   // 0. Debug Log — Ver exactamente qué llega desde el navegador
-  console.log('[processIntake] INICIO — Firma nueva (3 argumentos separados)');
-  console.log('[processIntake] fileId type:', typeof fileId, 'value:', fileId);
-  console.log('[processIntake] formDataJson type:', typeof formDataJson, 'length:', formDataJson ? formDataJson.length : 'null');
-  console.log('[processIntake] ocrItemsJson type:', typeof ocrItemsJson, 'length:', ocrItemsJson ? ocrItemsJson.length : 'null');
+  console.log('[processIntake] INICIO — Firma unificada (1 argumento JSON)');
+  console.log('[processIntake] payloadJson type:', typeof payloadJson, 'length:', payloadJson ? payloadJson.length : 'null');
 
-  // 1. Validar fileId directamente (es un string simple, imposible de perder)
+  // 1. Parsear payload unificado
+  let payload;
+  try {
+    payload = JSON.parse(payloadJson);
+  } catch (e) {
+    console.error('[processIntake] Error parseando payloadJson:', e.message);
+    return { success: false, error: 'Payload inválido (JSON corrupto).' };
+  }
+
+  const fileId = payload.fileId;
+  const formData = payload.formData;
+  const ocrItems = Array.isArray(payload.ocrItems) ? payload.ocrItems : [];
+
+  console.log('[processIntake] fileId extraído:', fileId);
+  console.log('[processIntake] formData:', formData ? 'presente' : 'ausente');
+  console.log('[processIntake] ocrItems:', ocrItems.length, 'items');
+
+  // 2. Validar fileId directamente (es un string simple, imposible de perder)
   if (!fileId || typeof fileId !== 'string' || fileId.trim() === '') {
     console.error('[processIntake] FILEID INVALIDO:', fileId);
     return { success: false, error: 'Falta el identificador del archivo PDF.' };
   }
 
-  // 2. Parsear formData desde JSON string
-  let formData;
-  try {
-    formData = JSON.parse(formDataJson);
-  } catch (e) {
-    console.error('[processIntake] Error parseando formDataJson:', e.message);
-    return { success: false, error: 'Datos del formulario inválidos (JSON corrupto).' };
-  }
-
-  if (!formData) {
+  // 3. Validar formData
+  if (!formData || typeof formData !== 'object') {
     return { success: false, error: 'Faltan los datos del formulario.' };
-  }
-
-  // 3. Parsear ocrItems desde JSON string (opcional)
-  let ocrItems = [];
-  if (ocrItemsJson && ocrItemsJson.trim() !== '' && ocrItemsJson !== '[]') {
-    try {
-      ocrItems = JSON.parse(ocrItemsJson);
-      console.log('[processIntake] ocrItems parseados:', ocrItems.length, 'items');
-    } catch (e) {
-      console.warn('[processIntake] ocrItems no parseable, continuando sin ellos:', e.message);
-    }
   }
 
   // 4. Validar campos requeridos del formulario
