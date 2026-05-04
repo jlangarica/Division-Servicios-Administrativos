@@ -628,12 +628,14 @@ async function handleProcessIntake(event) {
   }
 
   const btn = document.getElementById('btn-submit-intake');
+  btn.disabled = true;
   btn.classList.add('loading');
 
   try {
+    // Parámetro 1: fileId como primitivo string (inmune a serialización)
     const currentFileId = String(window._selectedFileId);
 
-    // ✅ SANITIZAR: Construir formData limpio, sin null/undefined
+    // Parámetro 2: formData limpio, sin null/undefined
     const formData = {
       tipo_tramite: document.getElementById('intake-tipo').value || '',
       fecha_recepcion: document.getElementById('intake-fecha').value || '',
@@ -642,7 +644,6 @@ async function handleProcessIntake(event) {
       atiende: AppState.user.email || ''
     };
 
-    // Solo agregar campos opcionales si tienen valor real
     const tieneNegativa = document.getElementById('intake-has-negativa').checked;
     if (tieneNegativa) {
       formData.tiene_negativa = true;
@@ -650,22 +651,21 @@ async function handleProcessIntake(event) {
       if (fechaNeg) formData.fecha_negativa = fechaNeg;
     }
 
-    // ✅ SANITIZAR: Construir payload plano sin propiedades undefined
-    const intakeData = {
-      fileId: currentFileId,
-      formData: formData
-    };
+    // Parámetro 3: ocrItems sanitizados (null → '' para evitar corrupción)
+    const rawOcrItems = window._ocrExtractedItems || [];
+    const sanitizedOcrItems = rawOcrItems.map(item => {
+      const clean = {};
+      for (const key of Object.keys(item)) {
+        clean[key] = (item[key] === null || item[key] === undefined) ? '' : item[key];
+      }
+      return clean;
+    });
 
-    // Solo agregar ocrItems si existe y tiene datos reales
-    if (window._ocrExtractedItems && Array.isArray(window._ocrExtractedItems) && window._ocrExtractedItems.length > 0) {
-      intakeData.ocrItems = window._ocrExtractedItems;
-    }
+    console.log('🚀 ENVIANDO — fileId:', currentFileId, '| formData:', Object.keys(formData), '| ocrItems:', sanitizedOcrItems.length);
 
-    // Deep-clone para asegurar objeto plano serializable
-    const safePayload = JSON.parse(JSON.stringify(intakeData));
-    console.log('🚀 ENVIANDO AL SERVIDOR (sanitizado):', safePayload);
-
-    const res = await AsyncRunner.run('processIntake', safePayload);
+    // ✅ 3 PARÁMETROS INDIVIDUALES — fileId viaja como primitivo, no dentro
+    // de un objeto que contenga arrays con null (causa raíz del bug)
+    const res = await AsyncRunner.run('processIntake', currentFileId, formData, sanitizedOcrItems);
 
     if (res.success) {
       window._selectedFileId = null;
@@ -679,6 +679,7 @@ async function handleProcessIntake(event) {
     console.error('[handleProcessIntake] Error:', err);
     Toast.show('❌ Error de red o conexión');
   } finally {
+    btn.disabled = false;
     btn.classList.remove('loading');
   }
 }
