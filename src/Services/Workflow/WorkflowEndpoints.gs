@@ -146,4 +146,4 @@ function processOcrEndpoint(fileId) {
     console.error('ERROR EN OCR ENDPOINT: %s', e.message);
     return { success: false, error: e.message };
   }
-}
+};

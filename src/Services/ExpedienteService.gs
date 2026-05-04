@@ -3,171 +3,136 @@
  */
 
 /**
- * Wrapper para processIntake cuando se usa con google.script.run.withUserObject()
- * El payload grande viaja seguro en withUserObject y este wrapper lo recibe como segundo parámetro
- * 
- * @returns {Object} Respuesta {success, folio, viewUrl, fileId, error}
- */
-function processIntakeWrapper() {
-  // Cuando se usa withUserObject, el primer argumento de la función server-side es undefined
-  // y el payload está en el segundo argumento (userObject)
-  var payloadData = arguments[1];
-  
-  console.log('[processIntakeWrapper] Recibido via withUserObject');
-  console.log('[processIntakeWrapper] Argumentos:', arguments.length);
-  
-  return processIntake(payloadData);
-}
-
-/**
  * Registra el ingreso de un oficio, creando una entidad digital centralizada.
  * Utiliza LockService para garantizar la atomicidad del folio.
- *
- * NOTA ARQUITECTÓNICA: Firma unificada processIntake(payloadData)
- * - Soporta tanto string JSON como objeto ya parseado (google.script.run puede auto-deserializar)
- * - Puede ser llamado directamente O via processIntakeWrapper (para payloads grandes)
  *
  * @param {string|Object} payloadData - JSON string u objeto con estructura: {"fileId":"...","formData":{...},"ocrItems":[...]}
  * @returns {Object} Respuesta {success, folio, viewUrl, fileId, error}
  */
 function processIntake(payloadData) {
-  // 0.5 Resiliencia withUserObject: Si payloadData es undefined, buscar en el segundo argumento
-  if (payloadData === undefined && arguments.length > 1) {
-    console.log('[processIntake] Payload detectado en arguments[1] (withUserObject fallback)');
-    payloadData = arguments[1];
-  }
-
   // 0. Debug Log — Ver exactamente que llega desde el navegador
-  console.log('[processIntake] INICIO — Firma unificada (1 argumento)');
+  console.log('[processIntake] INICIO — Procesando payload');
   console.log('[processIntake] Tipo de dato recibido:', typeof payloadData);
   
-  var payload;
+  let payload;
 
   // 1. Manejo resiliente del payload (google.script.run puede auto-parsear JSON)
   if (typeof payloadData === 'object' && payloadData !== null) {
     // Caso A: Google Apps Script ya deserializó el JSON automáticamente
     console.log('[processIntake] Payload llegó como OBJETO (auto-deserializado por GAS)');
-    console.log('[processIntake] Keys del payload:', Object.keys(payloadData).join(', '));
     payload = payloadData;
   } else if (typeof payloadData === 'string') {
     // Caso B: Llegó como string JSON crudo
     console.log('[processIntake] Payload llegó como STRING JSON (length: %s)', payloadData.length);
     
-    // Validar que no esté vacío o corrupto
     if (!payloadData || payloadData.trim() === '') {
       console.error('[processIntake] ERROR: String JSON VACÍO');
       return { success: false, error: 'Payload vacío o inválido.' };
     }
     try {
       payload = JSON.parse(payloadData);
-      console.log('[processIntake] JSON parseado exitosamente. Keys:', Object.keys(payload).join(', '));
+      console.log('[processIntake] JSON parseado exitosamente.');
     } catch (e) {
       return { success: false, error: 'Payload inválido (JSON corrupto): ' + e.message };
     }
   } else {
-    // Caso C: Tipo inesperado (undefined, number, boolean, etc.)
+    // Caso C: Tipo inesperado
     console.error('[processIntake] ERROR: Tipo de dato inesperado:', typeof payloadData);
     return { success: false, error: 'Payload vacío o inválido (tipo: ' + typeof payloadData + ').' };
   }
 
-  // 2. Extraer y validar fileId
-  var fileId = payload.fileId;
-  var formData = payload.formData;
-  var ocrItems = payload.ocrItems || [];
+  // 2. Extraer y validar datos
+  const { fileId, formData, ocrItems = [] } = payload;
 
   console.log('[processIntake] fileId extraído:', fileId);
-  console.log('[processIntake] formData keys:', Object.keys(formData || {}));
   console.log('[processIntake] ocrItems count:', ocrItems.length);
 
-  // 3. Validar fileId directamente
-  if (!fileId || (typeof fileId !== 'string' && typeof fileId !== 'number') || String(fileId).trim() === '') {
-    console.error('[processIntake] FILEID FALTANTE:', fileId);
+  // 3. Validar fileId
+  if (!fileId || String(fileId).trim() === '') {
+    console.error('[processIntake] FILEID FALTANTE');
     return { success: false, error: 'Falta el identificador del archivo PDF.' };
   }
 
-  // Asegurar que fileId sea string
-  fileId = String(fileId);
+  const cleanFileId = String(fileId);
 
   // 4. Validar formData
   if (!formData || typeof formData !== 'object') {
-    console.error('[processIntake] formData invalido - valor:', formData);
+    console.error('[processIntake] formData invalido');
     return { success: false, error: 'Faltan los datos del formulario.' };
   }
 
-  // 5. Validar campos requeridos del formulario
-  var requiredFields = ['tipo_tramite', 'fecha_recepcion', 'servicio_solicitante', 'oficio_solicitud'];
-  for (var i = 0; i < requiredFields.length; i++) {
-    var field = requiredFields[i];
+  // 5. Validar campos requeridos
+  const requiredFields = ['tipo_tramite', 'fecha_recepcion', 'servicio_solicitante', 'oficio_solicitud'];
+  for (const field of requiredFields) {
     if (!formData[field] || !String(formData[field]).trim()) {
       console.error('[processIntake] Campo requerido faltante:', field);
-      return { success: false, error: 'El campo [' + field + '] es obligatorio.' };
+      return { success: false, error: `El campo [${field}] es obligatorio.` };
     }
   }
 
   const lock = LockService.getScriptLock();
   try {
-    // 5. Adquisición de Lock (Máximo 15s para procesos de Drive)
+    // 5. Adquisición de Lock (Máximo 15s)
     lock.waitLock(15000);
 
     const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
     const sheet = ss.getSheetByName(SHEETS.BASE_DATOS) || ss.getSheets()[0];
     const lastRow = sheet.getLastRow();
-    const dataRange = lastRow > 1 ? sheet.getRange(2, 7, lastRow - 1, 1).getValues().flat() : [];
 
     // Verificación de duplicados por Referencia (Columna G - Oficio Solicitud)
+    const dataRange = lastRow > 1 ? sheet.getRange(2, 7, lastRow - 1, 1).getValues().flat() : [];
     if (dataRange.includes(formData.oficio_solicitud.trim())) {
       return { success: false, error: 'Este número de oficio ya ha sido registrado previamente.' };
     }
 
     // 6. Generación de Folio y Metadatos
-    const correlativo = lastRow === 0 ? 1 : lastRow;
+    const correlativo = Math.max(1, lastRow);
     const anio = new Date().getFullYear();
     const idInterno = generateUUID();
-    const idFolio = correlativo + '/' + anio;
-    const folioDsa = 'DSA-' + anio + '-' + String(correlativo).padStart(3, '0');
+    const folioDsa = `DSA-${anio}-${String(correlativo).padStart(3, '0')}`;
 
-    // Formateo de fecha ISO a Regional
-    var fechaFormateada = formData.fecha_recepcion;
-    var partes = formData.fecha_recepcion.split('-');
+    // Formateo de fecha ISO a Regional (DD/MM/YYYY)
+    let fechaFormateada = formData.fecha_recepcion;
+    const partes = formData.fecha_recepcion.split('-');
     if (partes.length === 3) {
-      fechaFormateada = partes[2] + '/' + partes[1] + '/' + partes[0];
+      fechaFormateada = `${partes[2]}/${partes[1]}/${partes[0]}`;
     }
 
-    // 7. Operaciones en Google Drive — Mover archivo de buffer a carpeta expediente
-    var rootFolder = DriveApp.getFolderById(DRIVE_CONFIG.EXPEDIENTES_FOLDER_ID);
-    var expedienteFolder = rootFolder.createFolder('Folio_' + folioDsa + '_DSA');
+    // 7. Operaciones en Google Drive
+    const rootFolder = DriveApp.getFolderById(DRIVE_CONFIG.EXPEDIENTES_FOLDER_ID);
+    const expedienteFolder = rootFolder.createFolder(`Folio_${folioDsa}_DSA`);
 
-    var sourceFile = DriveApp.getFileById(fileId);
-    var fileName = sourceFile.getName();
-    var blob = sourceFile.getBlob();
-    blob.setName('Oficio_' + folioDsa + '_' + fileName);
-    var file = expedienteFolder.createFile(blob);
+    const sourceFile = DriveApp.getFileById(cleanFileId);
+    const fileName = sourceFile.getName();
+    const blob = sourceFile.getBlob();
+    blob.setName(`Oficio_${folioDsa}_${fileName}`);
+    const file = expedienteFolder.createFile(blob);
 
-    // Limpiar archivo temporal del buffer (si existe en carpeta buffer)
+    // Limpiar archivo temporal
     try {
       sourceFile.setTrashed(true);
-      console.log('[processIntake] Archivo buffer eliminado: %s', fileId);
+      console.log('[processIntake] Archivo buffer eliminado: %s', cleanFileId);
     } catch (trashErr) {
       console.warn('[processIntake] No se pudo eliminar archivo buffer:', trashErr.message);
     }
 
-    // 8. Persistencia Atómica en Sheet 'Expedientes'
-    var timestamp = new Date();
-    var sheetExp = ss.getSheetByName(SHEETS.EXPEDIENTES) || ss.getSheetByName(SHEETS.BASE_DATOS);
+    // 8. Persistencia en Sheet 'Expedientes'
+    const timestamp = new Date();
+    const sheetExp = ss.getSheetByName(SHEETS.EXPEDIENTES) || ss.getSheetByName(SHEETS.BASE_DATOS);
 
     if (!sheetExp) {
-      throw new Error('No se encontró la hoja de destino (Expedientes o Base de Datos).');
+      throw new Error('No se encontró la hoja de destino.');
     }
 
-    var rowData = [
+    const rowData = [
       idInterno,                            // 1. uuid_folio
       folioDsa,                             // 2. folio_dsa
       formData.tipo_tramite,                // 3. tipo_tramite
       fechaFormateada,                      // 4. fecha_recepcion
       formData.servicio_solicitante,        // 5. servicio_solicitante
       formData.oficio_solicitud.trim(),     // 6. oficio_solicitud
-      formData.atiende,                     // 7. atiende (Creador)
-      'S01_RECEPCION',                      // 8. estatus_actual (ESTADO INICIAL FSM)
+      formData.atiende,                     // 7. atiende
+      'S01_RECEPCION',                      // 8. estatus_actual
       timestamp,                            // 9. fecha_estatus
       'DSA',                                // 10. asignado_a
       '',                                   // 11. locked_by
@@ -176,24 +141,24 @@ function processIntake(payloadData) {
 
     sheetExp.appendRow(rowData);
 
-    // 9. Registrar Evento Génesis en Flujo
-    var sheetFlujo = ss.getSheetByName(SHEETS.FLUJO);
+    // 9. Registrar Evento en Flujo
+    const sheetFlujo = ss.getSheetByName(SHEETS.FLUJO);
     if (sheetFlujo) {
-      var auditLog = [
-        idInterno,               // uuid_folio
-        timestamp,               // timestamp
-        'INIT_PROCESS',          // evento
-        'NONE',                  // estado_origen
-        'S01_RECEPCION',         // estado_destino
-        formData.atiende,        // actor
-        'Recepción de documento físico' // payload/reason
+      const auditLog = [
+        idInterno,
+        timestamp,
+        'INIT_PROCESS',
+        'NONE',
+        'S01_RECEPCION',
+        formData.atiende,
+        'Recepción de documento físico'
       ];
       sheetFlujo.appendRow(auditLog);
     }
 
     SpreadsheetApp.flush();
 
-    console.log('[processIntake] EXITO — Folio:', folioDsa, 'FileId:', file.getId());
+    console.log('[processIntake] EXITO — Folio:', folioDsa);
 
     return {
       success: true,
@@ -206,7 +171,11 @@ function processIntake(payloadData) {
     console.error('[ExpedienteService] processIntake Failure:', error);
     return { success: false, error: 'Error en el servidor: ' + error.message };
   } finally {
-    lock.releaseLock();
+    try {
+      lock.releaseLock();
+    } catch (e) {
+      // Ignorar si el lock no se pudo liberar o ya fue liberado
+    }
   }
 }
 
@@ -216,17 +185,17 @@ function processIntake(payloadData) {
  */
 function getExpedientesLibrary() {
   try {
-    var ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
-    var sheet = ss.getSheetByName(SHEETS.EXPEDIENTES) || ss.getSheetByName(SHEETS.BASE_DATOS);
+    const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
+    const sheet = ss.getSheetByName(SHEETS.EXPEDIENTES) || ss.getSheetByName(SHEETS.BASE_DATOS);
     if (!sheet) return [];
 
-    var data = sheet.getDataRange().getValues();
+    const data = sheet.getDataRange().getValues();
     if (data.length < 2) return [];
 
-    var headers = data[0].map(function(h) { return String(h).toLowerCase(); });
-    var find = function(name) { return headers.findIndex(function(h) { return h.includes(name); }); };
+    const headers = data[0].map(h => String(h).toLowerCase());
+    const find = (name) => headers.findIndex(h => h.includes(name));
 
-    var idx = {
+    const idx = {
       uuid: find('uuid'),
       folio: find('folio_dsa') !== -1 ? find('folio_dsa') : find('folio'),
       tipo: find('tipo'),
@@ -235,9 +204,9 @@ function getExpedientesLibrary() {
       estado: find('estado') !== -1 ? find('estado') : find('estatus')
     };
 
-    return data.slice(1).map(function(row) {
-      var folio = idx.folio !== -1 ? String(row[idx.folio]) : 'N/A';
-      var anioMatch = folio.match(/-(\d{4})-/);
+    return data.slice(1).map(row => {
+      const folio = idx.folio !== -1 ? String(row[idx.folio]) : 'N/A';
+      const anioMatch = folio.match(/-(\d{4})-/);
 
       return {
         uuid: idx.uuid !== -1 ? row[idx.uuid] : '',
@@ -261,20 +230,20 @@ function getExpedientesLibrary() {
  */
 function getSolicitudesPorUsuario() {
   try {
-    var user = getActiveUserSession();
+    const user = getActiveUserSession();
     if (!user) return [];
 
-    var ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
-    var sheet = ss.getSheetByName(SHEETS.EXPEDIENTES) || ss.getSheetByName(SHEETS.BASE_DATOS);
+    const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
+    const sheet = ss.getSheetByName(SHEETS.EXPEDIENTES) || ss.getSheetByName(SHEETS.BASE_DATOS);
     if (!sheet) return [];
 
-    var data = sheet.getDataRange().getValues();
+    const data = sheet.getDataRange().getValues();
     if (data.length < 2) return [];
 
-    var headers = data[0].map(function(h) { return String(h).toLowerCase(); });
-    var find = function(name) { return headers.findIndex(function(h) { return h.includes(name); }); };
+    const headers = data[0].map(h => String(h).toLowerCase());
+    const find = (name) => headers.findIndex(h => h.includes(name));
 
-    var colIdx = {
+    const colIdx = {
       uuid: find('uuid'),
       folio: find('folio_dsa') !== -1 ? find('folio_dsa') : find('folio'),
       servicio: find('servicio'),
@@ -282,7 +251,7 @@ function getSolicitudesPorUsuario() {
       estado: find('estado') !== -1 ? find('estado') : find('estatus')
     };
 
-    var solicitudes = data.slice(1).map(function(row) {
+    const solicitudes = data.slice(1).map(row => {
       return {
         uuid: colIdx.uuid !== -1 ? row[colIdx.uuid] : '',
         folio: colIdx.folio !== -1 ? row[colIdx.folio] : 'N/A',
@@ -293,10 +262,10 @@ function getSolicitudesPorUsuario() {
     });
 
     if (user.role === 'DSA') {
-      return solicitudes.filter(function(s) { return !['FINALIZADO', 'S99_RECHAZADO'].includes(s.estado); });
+      return solicitudes.filter(s => !['FINALIZADO', 'S99_RECHAZADO'].includes(s.estado));
     }
 
-    return solicitudes.filter(function(s) { return s.atiende === user.email; });
+    return solicitudes.filter(s => s.atiende === user.email);
 
   } catch (error) {
     console.error('[ExpedienteService] getSolicitudesPorUsuario Error:', error);
@@ -310,32 +279,32 @@ function getSolicitudesPorUsuario() {
  */
 function getFolioDetails(uuid) {
   try {
-    var ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
-    var sheet = ss.getSheetByName(SHEETS.BASE_DATOS);
-    var data = sheet.getDataRange().getValues();
+    const ss = SpreadsheetApp.openById(SS_ADQUISICIONES_ID);
+    const sheet = ss.getSheetByName(SHEETS.BASE_DATOS);
+    const data = sheet.getDataRange().getValues();
 
-    var headers = data[0].map(function(h) { return String(h).toLowerCase(); });
-    var row = data.find(function(r) { return r[0] === uuid; });
+    const headers = data[0].map(h => String(h).toLowerCase());
+    const row = data.find(r => r[0] === uuid);
     if (!row) return null;
 
-    var colIdx = {
-      estado: headers.findIndex(function(h) { return h.includes('estado') || h.includes('estatus'); }),
-      url: headers.findIndex(function(h) { return h.includes('drive') || h.includes('url'); })
+    const colIdx = {
+      estado: headers.findIndex(h => h.includes('estado') || h.includes('estatus')),
+      url: headers.findIndex(h => h.includes('drive') || h.includes('url'))
     };
 
-    var driveUrl = colIdx.url !== -1 ? row[colIdx.url] : '';
-    var pdfFileId = '';
+    const driveUrl = colIdx.url !== -1 ? row[colIdx.url] : '';
+    let pdfFileId = '';
 
     if (driveUrl) {
       try {
-        var folderId = driveUrl.match(/[-\w]{25,}/);
-        if (folderId) {
-          var folder = DriveApp.getFolderById(folderId[0]);
-          var files = folder.getFilesByType(MimeType.PDF);
+        const folderIdMatch = driveUrl.match(/[-\w]{25,}/);
+        if (folderIdMatch) {
+          const folder = DriveApp.getFolderById(folderIdMatch[0]);
+          const files = folder.getFilesByType(MimeType.PDF);
           if (files.hasNext()) pdfFileId = files.next().getId();
         }
       } catch (e) {
-        console.warn('[GetFolioDetails] I/O Drive Error para ' + uuid + ':', e.message);
+        console.warn(`[GetFolioDetails] I/O Drive Error para ${uuid}: ${e.message}`);
       }
     }
 
