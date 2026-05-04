@@ -30,6 +30,6 @@
   ],
   "webapp": {
     "executeAs": "USER_ACCESSING",
-    "access": "ANYONE"
+    "access": "ANYONE_ANONYMOUS"
   }
 }
