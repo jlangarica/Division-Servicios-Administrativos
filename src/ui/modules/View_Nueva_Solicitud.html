@@ -154,6 +154,7 @@
   let _ocrExtractedItems = null;
   let _stepInterval = null;
   let _pickerApiLoaded = false;
+  let _selectedFileId = null;
   const STEP_CHECK_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>';
 
   // ────────────────────────────────────────────────────────
@@ -172,10 +173,9 @@
     const btn = document.getElementById('btn-submit-intake');
     const originalText = btn.innerHTML;
 
-    // UI Lock — se activa ANTES de abrir el Picker
+    // UI Lock — solo el botón, NO is-syncing (bloquea el iframe del Picker)
     btn.disabled = true;
     btn.innerHTML = '🤖 Preparando...';
-    document.body.classList.add('is-syncing');
 
     try {
       // 1. Obtener configuración segura del servidor (token + folderId)
@@ -210,7 +210,7 @@
         .setOAuthToken(config.oauthToken)
         .setDeveloperKey(config.developerKey)
         .setAppId(config.projectNumber)
-        .setOrigin(window.location.origin)
+        .setOrigin(google.script.host.origin)
         .setTitle('Gestión Documental HCG — Seleccionar Oficio')
         .enableFeature(google.picker.Feature.NAV_HIDDEN)
         .setCallback(window.handlePickerResult)
@@ -240,11 +240,15 @@
       const doc = result.docs[0];
       const fileId = doc.id;
       const fileName = doc.name;
+      _selectedFileId = fileId;
       console.log("FileId capturado:", fileId);
       
       // UI feedback inmediato
       Toast.show('📂 Archivo recibido: ' + fileName);
       
+      // Activar bloqueo de UI DESPUÉS de PICKED (no antes, para no bloquear el Picker)
+      document.body.classList.add('is-syncing');
+
       // Renderizar preview
       const iframe = document.getElementById('pdf-iframe');
       if (iframe) iframe.src = 'https://drive.google.com/file/d/' + fileId + '/preview';
