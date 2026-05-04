@@ -240,12 +240,16 @@
 
     if (result.action === google.picker.Action.PICKED) {
       const doc = result.docs[0];
+      // Captura de datos del archivo seleccionado
       const fileId = doc.id;
       const fileName = doc.name;
-      window._selectedFileId = fileId;
-      console.log("FileId capturado:", fileId);
       
-      // UI feedback inmediato
+      // Persistencia en estado global
+      window._selectedFileId = String(fileId);
+      console.log("✅ ID de Archivo persistido en window._selectedFileId:", window._selectedFileId);
+      
+      // Inicia el stepper visual
+      startProcessStepper();
       Toast.show('📂 Archivo recibido: ' + fileName);
       
       // Activar bloqueo de UI DESPUÉS de PICKED (no antes, para no bloquear el Picker)

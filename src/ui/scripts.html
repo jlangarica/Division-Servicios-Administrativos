@@ -632,9 +632,18 @@ async function handleProcessIntake(event) {
   btn.classList.add('loading');
   
   try {
-    // Construcción explícita del DTO para el servidor
+    // 🔍 Verificación final antes de construir el objeto
+    const currentFileId = window._selectedFileId;
+    console.log("🔍 Verificación Pre-Envío:", { currentFileId });
+
+    if (!currentFileId) {
+       Toast.show('❌ Error: El ID del archivo se perdió. Intenta subirlo de nuevo.');
+       btn.classList.remove('loading');
+       return;
+    }
+
     const intakeData = {
-      fileId: String(window._selectedFileId || ''),
+      fileId: String(currentFileId),
       formData: {
         tipo_tramite: document.getElementById('intake-tipo').value,
         fecha_recepcion: document.getElementById('intake-fecha').value,
@@ -647,8 +656,7 @@ async function handleProcessIntake(event) {
       ocrItems: window._ocrExtractedItems || []
     };
 
-    console.log("=== DIAGNÓSTICO DE SALIDA (CLIENTE) ===");
-    console.log("Payload String:", JSON.stringify(intakeData));
+    console.log("🚀 ENVIANDO AL SERVIDOR:", intakeData);
 
     const res = await AsyncRunner.run('processIntake', intakeData);
     
