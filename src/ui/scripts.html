@@ -622,7 +622,10 @@ function renderPDF(data) {
 async function handleProcessIntake(event) {
   event.preventDefault();
 
-  if (!window._selectedFileId) {
+  // Leer fileId del hidden input como fuente primaria, window como fallback
+  const currentFileId = document.getElementById('hidden-file-id')?.value || String(window._selectedFileId || '');
+  
+  if (!currentFileId) {
     Toast.show('⚠️ Primero selecciona el oficio PDF usando el botón de carga.');
     return;
   }
@@ -633,9 +636,9 @@ async function handleProcessIntake(event) {
 
   try {
     // Parámetro 1: fileId como primitivo string (inmune a serialización)
-    const currentFileId = String(window._selectedFileId);
+    const fileId = currentFileId;
 
-    // Parámetro 2: formData limpio, sin null/undefined
+    // Parámetro 2: formData pre-serializado a string JSON
     const formData = {
       tipo_tramite: document.getElementById('intake-tipo').value || '',
       fecha_recepcion: document.getElementById('intake-fecha').value || '',
@@ -651,25 +654,28 @@ async function handleProcessIntake(event) {
       if (fechaNeg) formData.fecha_negativa = fechaNeg;
     }
 
-    // Parámetro 3: ocrItems sanitizados (null → '' para evitar corrupción)
+    const formDataJson = JSON.stringify(formData);
+
+    // Parámetro 3: ocrItems pre-serializado a string JSON (opcional)
     const rawOcrItems = window._ocrExtractedItems || [];
-    const sanitizedOcrItems = rawOcrItems.map(item => {
-      const clean = {};
-      for (const key of Object.keys(item)) {
-        clean[key] = (item[key] === null || item[key] === undefined) ? '' : item[key];
-      }
-      return clean;
+    const ocrItemsJson = rawOcrItems.length > 0 ? JSON.stringify(rawOcrItems) : '';
+
+    console.log('🚀 ENVIANDO AL SERVIDOR (Pre-serializado):', { 
+      fileId, 
+      formDataLength: formDataJson.length, 
+      hasOcr: ocrItemsJson.length > 0 
     });
 
-    console.log('🚀 ENVIANDO — fileId:', currentFileId, '| formData:', Object.keys(formData), '| ocrItems:', sanitizedOcrItems.length);
-
-    // ✅ 3 PARÁMETROS INDIVIDUALES — fileId viaja como primitivo, no dentro
-    // de un objeto que contenga arrays con null (causa raíz del bug)
-    const res = await AsyncRunner.run('processIntake', currentFileId, formData, sanitizedOcrItems);
+    // ✅ ENVIAR ARGUMENTOS SEPARADOS Y SERIALIZADOS
+    // Esto garantiza que GAS no corrompa el objeto raíz
+    const res = await AsyncRunner.run('processIntake', fileId, formDataJson, ocrItemsJson);
 
     if (res.success) {
       window._selectedFileId = null;
       window._ocrExtractedItems = null;
+      const hiddId = document.getElementById('hidden-file-id');
+      if (hiddId) hiddId.value = '';
+      
       Toast.show('✅ ¡Folio generado: ' + res.folio);
       navigateMenu(null, 'ui/modules/View_Solicitudes');
     } else {
