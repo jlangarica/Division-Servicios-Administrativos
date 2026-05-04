@@ -7,8 +7,8 @@
  * y normalización de tablas basada en auditoría documental.
  */
 const OcrService = (() => {
-  /** @const {string} Modelo: Gemini 2.0 Flash Lite (extracción rápida y económica) */
-  const MODEL_ID = "gemini-3.0-flash-preview";
+  /** @const {string} Modelo: Gemini 2.5 Flash (producción, multimodal, rápido) */
+  const MODEL_ID = "gemini-2.5-flash";
 
   /** @const {string} Base URL del endpoint REST de Gemini */
   const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
