@@ -1,45 +1,60 @@
 /**
  * Endpoints RPC para el Frontend relacionados con el Workflow FSM.
- * Funciones expuestas a google.script.run
+ *
+ * CORRECCIONES v2:
+ *  - BUG-09 FIX: El rol del usuario estaba hardcodeado como 'DSA' y el email
+ *    de fallback era 'test@example.com'. Esto otorgaba permisos de administrador
+ *    a TODOS los usuarios autenticados en producción. Corregido leyendo el rol
+ *    real desde getActiveUserSession() (con caché de 30 min).
  */
 
 /**
- * Obtiene las acciones (eventos) disponibles para un folio específico
- * según el estado actual y el contexto del usuario en sesión.
- * 
- * @param {string} uuid_folio ID único del expediente.
- * @returns {Array<string>} Lista de eventos válidos (ej. ['ADVANCE', 'REJECT']).
+ * Obtiene las acciones disponibles para un folio según estado y rol real del usuario.
+ *
+ * @param {string} uuid_folio
+ * @returns {Array<string>}
  */
 function getAvailableActionsEndpoint(uuid_folio) {
   try {
-    // En un sistema real, extraeríamos el rol del usuario desde la sesión o caché
-    // Aquí simulamos que el usuario tiene el rol 'DSA'
+    // FIX BUG-09: Leer rol y email desde la sesión real (caché CacheService 30 min).
+    // Antes: userRole: 'DSA' hardcodeado → cualquier usuario podía actuar como DSA.
+    // Antes: email fallback 'test@example.com' → artefacto de desarrollo en producción.
+    const session = getActiveUserSession();
+
+    if (!session) {
+      console.warn('[WorkflowEndpoints] getAvailableActions: usuario sin sesión activa.');
+      return [];
+    }
+
     const sessionContext = {
-      userRole: 'DSA',
-      userEmail: Session.getActiveUser().getEmail() || 'test@example.com'
+      userRole:  session.role  || 'VIEWER',
+      userEmail: session.email || ''
     };
 
     return WorkflowEngine.getAvailableActions(uuid_folio, sessionContext);
+
   } catch (error) {
     console.error('[WorkflowEndpoints] Error en getAvailableActionsEndpoint:', error);
-    return []; // Fallback seguro: no mostrar acciones
+    return [];
   }
 }
 
 /**
  * Despacha un evento desde el frontend para realizar una transición en el FSM.
- * 
- * @param {string} uuid_folio ID único del expediente.
- * @param {string} event Nombre del evento a despachar (ej. 'ADVANCE').
- * @param {Object} [payload={}] Datos adicionales para la transición (ej. { reason: 'No cumple requisitos' }).
- * @returns {Object} Respuesta estándar de la API { success, newState, error }.
+ *
+ * @param {string} uuid_folio
+ * @param {string} event
+ * @param {Object} [payload={}]
+ * @returns {Object} {success, newState, error}
  */
 function dispatchWorkflowEventEndpoint(uuid_folio, event, payload = {}) {
   try {
-    // Inyectar datos de sesión en el payload para auditoría
-    payload.userEmail = Session.getActiveUser().getEmail() || 'test@example.com';
+    // FIX BUG-09: Usar email real de sesión en lugar de fallback de desarrollo.
+    const session = getActiveUserSession();
+    payload.userEmail = session?.email || Session.getActiveUser().getEmail() || '';
 
     return WorkflowRepository.dispatchEvent(uuid_folio, event, payload);
+
   } catch (error) {
     console.error('[WorkflowEndpoints] Error en dispatchWorkflowEventEndpoint:', error);
     return { success: false, error: 'Error del servidor al procesar la transición.' };
@@ -52,30 +67,23 @@ function dispatchWorkflowEventEndpoint(uuid_folio, event, payload = {}) {
 // ────────────────────────────────────────────────────────
 
 /**
- * Retorna la configuración necesaria para instanciar el Google Picker
- * en el frontend. Expone el token OAuth, la carpeta buffer, la
- * Developer Key y el Project Number requerido para UploadView.
+ * Retorna la configuración necesaria para instanciar el Google Picker.
  *
- * @returns {{ oauthToken: string, folderId: string, developerKey: string, projectNumber: string }}
+ * @returns {{ oauthToken, folderId, developerKey, projectNumber }}
  */
 function getPickerConfig() {
   try {
-    const oauthToken = ScriptApp.getOAuthToken();
-    const folderId = CONFIG.OCR_BUFFER_FOLDER_ID;
+    const oauthToken   = ScriptApp.getOAuthToken();
+    const folderId     = CONFIG.OCR_BUFFER_FOLDER_ID;
     const developerKey = CONFIG.GOOGLE_DEV_KEY;
     const projectNumber = CONFIG.GOOGLE_PROJECT_NUMBER;
 
-    if (!folderId) {
-      throw new Error('OCR_BUFFER_FOLDER_ID no configurado.');
-    }
-    if (!developerKey) {
-      throw new Error('GOOGLE_DEV_KEY no configurada.');
-    }
-    if (!projectNumber) {
-      throw new Error('GOOGLE_PROJECT_NUMBER no configurado.');
-    }
+    if (!folderId)      throw new Error('OCR_BUFFER_FOLDER_ID no configurado.');
+    if (!developerKey)  throw new Error('GOOGLE_DEV_KEY no configurada.');
+    if (!projectNumber) throw new Error('GOOGLE_PROJECT_NUMBER no configurado.');
 
     return { oauthToken, folderId, developerKey, projectNumber };
+
   } catch (error) {
     console.error('[WorkflowEndpoints] Error en getPickerConfig:', error);
     throw new Error('No se pudo obtener la configuración del Picker: ' + error.message);
@@ -89,61 +97,39 @@ function getPickerConfig() {
 
 /**
  * Endpoint RPC para extracción OCR con Gemini AI.
- * Recibe un fileId de Drive (subido por Picker), extrae el blob,
- * lo envía a Gemini y mantiene el archivo temporal para su uso posterior en processIntake.
  *
- * REGLA DE ORO: "No Base64 in RPC" — el binario viaja por Drive, no por parámetros.
- * REGLA DE ORO: "Atomic Trash" — el archivo se elimina en processIntake, NO aquí.
- *
- * @param {string} fileId ID del archivo en Google Drive (subido por Picker).
- * @returns {Object} Datos estructurados extraídos, o { success: false, error }.
+ * @param {string} fileId ID del archivo en Google Drive.
+ * @returns {Object} Datos estructurados o { success: false, error }.
  */
 function processOcrEndpoint(fileId) {
-  /** @type {GoogleAppsScript.Drive.File|null} */
-  let driveFile = null;
-
   try {
-    // 0. Validación del fileId
     if (!fileId || typeof fileId !== 'string') {
       throw new Error('fileId inválido o ausente.');
     }
 
-    // 1. Ingesta — Obtener el blob del archivo desde Drive
     console.log('--- Iniciando OCR para archivo: %s ---', fileId);
-    driveFile = DriveApp.getFileById(fileId);
+    const driveFile = DriveApp.getFileById(fileId);
 
-    // Verificar que el archivo aún existe y es accesible
     if (!driveFile) {
       throw new Error('El archivo PDF no existe o fue eliminado.');
     }
 
-    const blob = driveFile.getBlob();
-    const bytes = blob.getBytes();
+    const blob     = driveFile.getBlob();
+    const bytes    = blob.getBytes();
     const mimeType = blob.getContentType();
 
-    // 2. Validar tamaño (Gemini tiene límite de ~15MB por petición inline)
     const MAX_SIZE = 15 * 1024 * 1024;
     if (bytes.length > MAX_SIZE) {
       throw new Error('El archivo excede los 15MB permitidos para el análisis IA.');
     }
 
-    console.log(
-      '[OCR Endpoint] Archivo cargado — MIME: %s, Size: %s bytes',
-      mimeType,
-      bytes.length
-    );
+    console.log('[OCR Endpoint] Archivo cargado — MIME: %s, Size: %s bytes', mimeType, bytes.length);
 
-    // 3. Análisis — Ejecutar extracción AI
     const base64Data = Utilities.base64Encode(bytes);
-    const result = OcrService.analyzeDocumentWithGemini(base64Data, mimeType);
-
-    // IMPORTANTE: NO eliminar el archivo aquí - se necesita para processIntake
-    // El archivo será eliminado en processIntake después de crear la copia en la carpeta de expedientes
-
-    return result;
+    return OcrService.analyzeDocumentWithGemini(base64Data, mimeType);
 
   } catch (e) {
     console.error('ERROR EN OCR ENDPOINT: %s', e.message);
     return { success: false, error: e.message };
   }
-};
+}

@@ -1,99 +1,79 @@
 /**
  * Configuración global del sistema.
- * Centraliza constantes, IDs y enums compartidos.
  *
- * @fileoverview Single source of truth para configuración.
- * Los IDs sensibles se recuperan de PropertiesService.
- * @constant
+ * CORRECCIÓN v2:
+ *  - BUG-12 FIX: Eliminados los IDs de Spreadsheet y carpeta de Drive hardcodeados
+ *    como valores fallback. Tener IDs de recursos de producción en el código fuente
+ *    expone los activos institucionales a cualquier persona con acceso al repositorio.
+ *    Ahora todos los IDs críticos DEBEN estar en PropertiesService. Si falta alguno,
+ *    la validación fail-fast al final del archivo lanza un error claro.
  */
 
-/** 
- * Clase de configuración estática para centralizar el acceso a propiedades.
- */
 const CONFIG = (function() {
   const props = PropertiesService.getScriptProperties().getProperties();
-  
-  // Validación no-bloqueante de la API Key de Gemini
+
+  // Validaciones no-bloqueantes de APIs opcionales
   if (!props.GEMINI_API_KEY) {
     console.warn('[Config] Falta GEMINI_API_KEY en ScriptProperties. El OCR con IA no funcionará.');
   }
-
-  // Validación no-bloqueante de credenciales Supabase
   if (!props.SUPABASE_URL || !props.SUPABASE_KEY) {
-    console.warn('[Config] Faltan SUPABASE_URL / SUPABASE_KEY en ScriptProperties. El historial de proveedores no funcionará.');
+    console.warn('[Config] Faltan SUPABASE_URL / SUPABASE_KEY. El historial de proveedores no funcionará.');
   }
 
   return {
-    /** ID del Spreadsheet de configuración */
-    SS_CONFIG_ID: props.SS_CONFIG_ID || '1BsQLunCnWlkRJZUOgXy3mBuRlQZ8EovR7vfN4E6zTHI',
-    
-    /** ID de la hoja de Adquisiciones/Base de Datos */
-    SS_ADQUISICIONES_ID: props.SS_ADQUISICIONES_ID || '1sI_Yy5A7_HqSH1FY4ftg9EMs-jMw7HpQQFV4Ai7X6z8',
-    
-    /** ID de la carpeta raíz de expedientes en Drive */
-    EXPEDIENTES_FOLDER_ID: props.EXPEDIENTES_FOLDER_ID || '1o5kw1wyPnOzQp8NypnReBHxzjeJEj34G',
+    // FIX BUG-12: IDs críticos SIN fallback hardcodeado.
+    // Si no están en PropertiesService, retornan undefined y la validación
+    // final lanza un error con mensaje claro (fail-fast).
+    // Configurar en: Extensiones → Apps Script → Configuración del proyecto → Propiedades de script
+    SS_CONFIG_ID:           props.SS_CONFIG_ID,
+    SS_ADQUISICIONES_ID:    props.SS_ADQUISICIONES_ID,
+    EXPEDIENTES_FOLDER_ID:  props.EXPEDIENTES_FOLDER_ID,
 
-    /** API Key de Google AI Studio (Gemini). Se lee exclusivamente de PropertiesService. */
-    GEMINI_API_KEY: props.GEMINI_API_KEY || '',
-
-    /** ID de carpeta temporal en Drive para buffer del Picker OCR (efímera — auto-purge). */
-    OCR_BUFFER_FOLDER_ID: props.OCR_BUFFER_FOLDER_ID || '',
-
-    /** API Key de navegador (GCP) para Google Picker. Restringida a *.googleusercontent.com */
-    GOOGLE_DEV_KEY: props.GOOGLE_DEV_KEY || '',
-
-    /** Número de Proyecto de Google Cloud (AppId). Requerido por la doc oficial. */
-    GOOGLE_PROJECT_NUMBER: props.GOOGLE_PROJECT_NUMBER || '',
-
-    /** URL base del proyecto Supabase (PostgREST). Se lee de PropertiesService. */
-    SUPABASE_URL: props.SUPABASE_URL || '',
-
-    /** Clave de autenticación de Supabase (anon o service_role). Se lee de PropertiesService. */
-    SUPABASE_KEY: props.SUPABASE_KEY || ''
+    // APIs opcionales — sin fallback tampoco, pero sus advertencias ya están arriba
+    GEMINI_API_KEY:         props.GEMINI_API_KEY    || '',
+    OCR_BUFFER_FOLDER_ID:   props.OCR_BUFFER_FOLDER_ID || '',
+    GOOGLE_DEV_KEY:         props.GOOGLE_DEV_KEY    || '',
+    GOOGLE_PROJECT_NUMBER:  props.GOOGLE_PROJECT_NUMBER || '',
+    SUPABASE_URL:           props.SUPABASE_URL       || '',
+    SUPABASE_KEY:           props.SUPABASE_KEY       || '',
   };
 })();
 
-// Compatibilidad con código existente (Alias)
-const SS_CONFIG_ID = CONFIG.SS_CONFIG_ID;
+// Alias de compatibilidad
+const SS_CONFIG_ID        = CONFIG.SS_CONFIG_ID;
 const SS_ADQUISICIONES_ID = CONFIG.SS_ADQUISICIONES_ID;
 
-/**
- * Nombres de las hojas de cálculo.
- * @enum {string}
- */
+/** @enum {string} */
 const SHEETS = Object.freeze({
-  USUARIOS: 'Usuarios',
+  USUARIOS:   'Usuarios',
   BASE_DATOS: 'Base de Datos',
-  EXPEDIENTES: 'Expedientes',
-  BIENES: 'Detalles',
-  FLUJO: 'Flujo',
+  EXPEDIENTES:'Expedientes',
+  BIENES:     'Detalles',
+  FLUJO:      'Flujo',
 });
 
-/** Configuración de Drive */
 const DRIVE_CONFIG = Object.freeze({
   EXPEDIENTES_FOLDER_ID: CONFIG.EXPEDIENTES_FOLDER_ID,
 });
 
-/**
- * Duración de caché en segundos.
- * @enum {number}
- */
+/** @enum {number} */
 const CACHE_TTL = Object.freeze({
-  USER_SESSION: 1800,   // 30 min
-  LOOKUP_DATA: 3600,    // 1 h
+  USER_SESSION: 1800,
+  LOOKUP_DATA:  3600,
 });
 
-/**
- * Configuración de la aplicación UI.
- * @enum {string}
- */
+/** @enum {string} */
 const APP_CONFIG = Object.freeze({
   TITLE: 'Sistema de Compras HCG',
   BRAND: 'DSA | Compras',
 });
 
-// Validación de carga (fail-fast)
-if (!SS_CONFIG_ID || !SS_ADQUISICIONES_ID) {
-  throw new Error('Faltan IDs de configuración crítica. Verifique PropertiesService o Config.gs');
+// Validación fail-fast de IDs críticos
+// Mensaje claro indica exactamente qué configurar y dónde.
+if (!SS_CONFIG_ID || !SS_ADQUISICIONES_ID || !CONFIG.EXPEDIENTES_FOLDER_ID) {
+  throw new Error(
+    '[Config] Faltan IDs críticos en PropertiesService. ' +
+    'Configure SS_CONFIG_ID, SS_ADQUISICIONES_ID y EXPEDIENTES_FOLDER_ID en: ' +
+    'Extensiones → Apps Script → Configuración del proyecto → Propiedades de script.'
+  );
 }
-
